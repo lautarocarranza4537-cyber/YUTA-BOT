@@ -1,16 +1,13 @@
 {
-  "name": "yuta-music-bot",
+  "name": "yuta-bot",
   "version": "1.0.0",
-  "description": "Bot de música para WhatsApp",
-  "main": "index.js",
-  "type": "module",
-  "scripts": {
-    "start": "node index.js"
-  },
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "@distube/ytdl-core": "^4.15.8",
-    "@whiskeysockets/baileys": "^6.7.5",
+    "@whiskeysockets/baileys": "^6.7.18",
     "pino": "^9.0.0",
-    "yt-search": "^2.12.1"
+    "wa-sticker-formatter": "^4.4.4",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
   }
 }
