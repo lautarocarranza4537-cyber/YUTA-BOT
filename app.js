@@ -9,7 +9,7 @@ const store={
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=s=>{s=Math.floor(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
 let tt;
-function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('on'),2300)}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('on'),4500)}
 
 /* ripple en botones */
 document.addEventListener('pointerdown',e=>{
@@ -189,7 +189,17 @@ const prevSong=()=>{if(queue.length)playSong(queue,(qi-1+queue.length)%queue.len
 A.onplay=()=>{document.body.classList.add('pl');$('pp').textContent='⏸'};
 A.onpause=()=>{document.body.classList.remove('pl');$('pp').textContent='▶'};
 A.onended=nextSong;
-A.onerror=()=>{if(A.getAttribute('src'))toast('No se pudo reproducir esta pista')};
+A.onerror=async()=>{
+  const s=A.getAttribute('src');if(!s)return;
+  try{
+    const r=await fetch(s,{headers:{Range:'bytes=0-1'}});
+    if(!r.ok){const j=await r.json().catch(function(){return {}});toast((j.error||'No se pudo reproducir').slice(0,150));return}
+    toast('El navegador no pudo reproducir este audio');
+  }catch(e){toast('No se pudo conectar con el servidor')}
+};
+let wd;
+A.onloadstart=()=>{clearTimeout(wd);wd=setTimeout(function(){if(A.readyState<3&&!A.paused)toast('Tarda en cargar… si no suena, prueba otra canción')},25000)};
+A.oncanplay=()=>clearTimeout(wd);
 A.ontimeupdate=()=>{
   const d=A.duration||0;
   $('ct').textContent=fmt(A.currentTime);$('dt').textContent=fmt(d);

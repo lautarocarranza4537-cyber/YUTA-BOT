@@ -2,6 +2,7 @@ const http = require('http')
 const fs = require('fs')
 const path = require('path')
 const api = require('./api')
+const play = require('./play')
 
 process.on('unhandledRejection', e => console.error('unhandledRejection:', e))
 process.on('uncaughtException', e => console.error('uncaughtException:', e))
@@ -14,6 +15,7 @@ const FILES = {
 
 http.createServer(async (req, res) => {
   try {
+    if (await play(req, res)) return
     if (await api(req, res)) return
     const p = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html'
     const type = FILES[p]
