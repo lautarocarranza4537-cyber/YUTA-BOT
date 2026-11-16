@@ -2,7 +2,7 @@ const { Readable } = require('stream')
 const C = require('./core')
 const { S, ready, errMsg, host, fetchJson, ytdlpLines, startYtdlp, openHttp, INVIDIOUS, PIPED, CLIENTS } = C
 
-const MAX_SECONDS = 15 * 60
+const MAX_SECONDS = 20 * 60
 const YT_FMT = 'bestaudio[ext=m4a]/140'
 const SC_FMT = 'http_mp3/bestaudio[protocol^=http]/bestaudio'
 const YTM = 'https://music.youtube.com/youtubei/v1/'
@@ -21,9 +21,11 @@ async function cached(key, ms, fn) {
   const h = cache.get(key)
   if (h && Date.now() - h.t < ms) return h.v
   const v = await fn()
-  if (Array.isArray(v) && !v.length) return v
-  cache.set(key, { t: Date.now(), v })
-  if (cache.size > 100) cache.delete(cache.keys().next().value)
+  const n = Array.isArray(v) ? v.length : (v && v.results ? v.results.length : 0)
+  if (n) {
+    cache.set(key, { t: Date.now(), v })
+    if (cache.size > 100) cache.delete(cache.keys().next().value)
+  }
   return v
 }
 
@@ -45,7 +47,7 @@ const runsOf = c => ((c && c.text && c.text.runs) || []).map(r => r.text)
 const isSep = s => /^\s*[•·]\s*$/.test(s)
 const lastThumb = arr => (arr && arr.length ? arr[arr.length - 1].url : '')
 
-function parseSongs(j, limit = 25) {
+function parseSongs(j, limit = 30) {
   const out = [], seen = new Set()
   const walk = o => {
     if (!o || typeof o !== 'object' || out.length >= limit) return
@@ -72,7 +74,7 @@ function parseSongs(j, limit = 25) {
   return out
 }
 
-function parseTwoRow(j, limit = 25) {
+function parseTwoRow(j, limit = 30) {
   const out = [], seen = new Set()
   const walk = o => {
     if (!o || typeof o !== 'object' || out.length >= limit) return
@@ -94,26 +96,25 @@ function parseTwoRow(j, limit = 25) {
   return out
 }
 
-async function searchYTMusic(q) {
-  return parseSongs(await ytmPost('search', { query: q, params: SONGS }))
-}
+const searchYTMusic = async q => parseSongs(await ytmPost('search', { query: q, params: SONGS }))
 
-// ───────── YouTube normal ─────────
-async function searchYouTube(q, params) {
-  const body = { context: { client: { clientName: 'WEB', clientVersion: '2.20250101.00.00', hl: 'es', gl: 'AR' } }, query: q }
-  if (params) body.params = params
-  const j = await fetchJson('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', 8000, {
+// ───────── YouTube normal (con paginación) ─────────
+async function ytPage(q, token, params) {
+  const ctx = { client: { clientName: 'WEB', clientVersion: '2.20250101.00.00', hl: 'es', gl: 'AR' } }
+  const body = token ? { context: ctx, continuation: token } : { context: ctx, query: q, ...(params ? { params } : {}) }
+  const j = await fetchJson('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', 9000, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept-Language': 'es-419,es;q=0.9' },
     body: JSON.stringify(body)
   })
-  const out = []
+  const items = []
+  let next = null
   const walk = o => {
-    if (!o || typeof o !== 'object' || out.length >= 20) return
+    if (!o || typeof o !== 'object') return
     if (o.videoRenderer) {
       const v = o.videoRenderer
       const secs = toSec(v.lengthText && v.lengthText.simpleText)
-      if (v.videoId && secs > 20 && secs <= MAX_SECONDS) out.push({
+      if (v.videoId && secs > 20 && secs <= MAX_SECONDS) items.push({
         id: v.videoId,
         title: ((v.title && v.title.runs) || []).map(r => r.text).join('') || 'Sin título',
         by: (v.ownerText && v.ownerText.runs && v.ownerText.runs[0] && v.ownerText.runs[0].text) || 'YouTube',
@@ -122,11 +123,13 @@ async function searchYouTube(q, params) {
       })
       return
     }
+    if (o.continuationCommand && o.continuationCommand.token && !next) { next = o.continuationCommand.token; return }
     for (const k in o) walk(o[k])
   }
   walk(j)
-  return out
+  return { items, next }
 }
+const searchYouTube = async (q, params) => (await ytPage(q, null, params)).items
 
 async function searchInvidious(q) {
   let last
@@ -152,39 +155,45 @@ async function searchSoundcloud(q) {
   }).filter(Boolean)
 }
 
-// ───────── Buscar y novedades ─────────
-async function search(q) {
-  await ready
+// ───────── Buscar, novedades ─────────
+async function fallback(q) {
   const errors = []
-  const [a, b] = await Promise.allSettled([searchYTMusic(q), searchYouTube(q)])
-  const seen = new Set(), results = []
-  for (const r of [a, b]) {
-    if (r.status === 'rejected') { errors.push(errMsg(r.reason)); console.log('⚠ búsqueda →', errMsg(r.reason)); continue }
-    for (const x of r.value) if (!seen.has(x.id) && results.length < 30) { seen.add(x.id); results.push(x) }
-  }
-  if (results.length) return { source: 'youtube', results }
   for (const [name, fn] of [['invidious', () => searchInvidious(q)], ['soundcloud', () => searchSoundcloud(q)]]) {
     try {
       const r = await fn()
-      if (r && r.length) return { source: name, results: r }
+      if (r && r.length) return r
       errors.push(name + ': sin resultados')
-    } catch (e) { errors.push(name + ': ' + errMsg(e)); console.log('⚠ búsqueda', name, '→', errMsg(e)) }
+    } catch (e) { errors.push(name + ': ' + errMsg(e)); console.log('⚠ respaldo', name, '→', errMsg(e)) }
   }
   throw new Error('No encontré resultados. ' + errors.join(' | ').slice(0, 250))
+}
+
+async function find(q, token) {
+  if (token) {
+    const p = await ytPage(q, token)
+    return { results: p.items, next: p.next }
+  }
+  const [a, b] = await Promise.allSettled([searchYTMusic(q), ytPage(q)])
+  const seen = new Set(), results = []
+  const add = x => { if (!seen.has(x.id)) { seen.add(x.id); results.push(x) } }
+  if (a.status === 'fulfilled') a.value.forEach(add); else console.log('⚠ YouTube Music →', errMsg(a.reason))
+  if (b.status === 'fulfilled') b.value.items.forEach(add); else console.log('⚠ YouTube →', errMsg(b.reason))
+  const next = b.status === 'fulfilled' ? b.value.next : null
+  if (!results.length) return { results: await fallback(q), next: null }
+  return { results, next }
 }
 
 async function newReleases() {
   return cached('new', 180000, async () => {
     try {
-      const j = await ytmPost('browse', { browseId: 'FEmusic_new_releases_videos' })
-      const r = parseTwoRow(j)
+      const r = parseTwoRow(await ytmPost('browse', { browseId: 'FEmusic_new_releases_videos' }))
       if (r.length >= 3) return r
     } catch (e) { console.log('⚠ novedades de YouTube Music →', errMsg(e)) }
     return searchYouTube('official audio', BY_DATE)
   })
 }
 
-// ───────── Reproducción (stream) ─────────
+// ───────── Reproducción (stream, una a la vez) ─────────
 let active = null
 
 function pipeOut(res, ctx, s, mime, source) {
@@ -268,19 +277,33 @@ async function status() {
   return out
 }
 
+// ───────── Rutas ─────────
 module.exports = async (req, res) => {
   const u = new URL(req.url, 'http://x')
   if (!u.pathname.startsWith('/api/')) return false
   try {
-    if (u.pathname === '/api/search') {
-      const q = (u.searchParams.get('q') || '').trim().slice(0, 120)
-      if (!q) return send(res, 400, { error: 'Falta ?q=' }), true
-      send(res, 200, await cached('s:' + q.toLowerCase(), 120000, () => search(q)))
-    } else if (u.pathname === '/api/new') {
+    const p = u.pathname
+    const q = (u.searchParams.get('q') || '').trim().slice(0, 120)
+    if (p === '/api/ping') {
+      send(res, 200, { ok: true, version: 3, ytdlp: S.err || S.bin })
+    } else if (p === '/api/find' || p === '/api/search') {
+      const t = (u.searchParams.get('t') || '').slice(0, 2000)
+      if (!q) send(res, 400, { error: 'Falta ?q=' })
+      else { await ready; send(res, 200, await cached('f:' + q.toLowerCase() + ':' + t.slice(-30), 120000, () => find(q, t))) }
+    } else if (p === '/api/suggest') {
+      let list = []
+      if (q) {
+        try {
+          const arr = await fetchJson('https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&hl=es&q=' + encodeURIComponent(q), 4000)
+          list = (arr[1] || []).slice(0, 8)
+        } catch (e) {}
+      }
+      send(res, 200, { suggestions: list })
+    } else if (p === '/api/new') {
       send(res, 200, { results: await newReleases() })
-    } else if (u.pathname === '/api/stream') {
+    } else if (p === '/api/stream') {
       await stream(req, res, u)
-    } else if (u.pathname === '/api/status') {
+    } else if (p === '/api/status') {
       send(res, 200, await status())
     } else send(res, 404, { error: 'No existe' })
   } catch (e) {
@@ -288,5 +311,3 @@ module.exports = async (req, res) => {
   }
   return true
 }
-
-module.exports.h = { searchYTMusic, search }

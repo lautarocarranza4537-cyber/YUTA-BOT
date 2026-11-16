@@ -1,11 +1,27 @@
 const http = require('http')
 const fs = require('fs')
 const path = require('path')
-const T = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' }
-http.createServer((req, res) => {
-  const p = decodeURIComponent(req.url.split('?')[0])
-  const f = path.join(__dirname, p === '/' ? 'index.html' : p)
-  if (!f.startsWith(__dirname) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('No encontrado') }
-  res.writeHead(200, { 'Content-Type': T[path.extname(f)] || 'application/octet-stream' })
-  fs.createReadStream(f).pipe(res)
-}).listen(process.env.PORT || 3000, () => console.log('YUTA Play en marcha'))
+const api = require('./api')
+
+process.on('unhandledRejection', e => console.error('unhandledRejection:', e))
+process.on('uncaughtException', e => console.error('uncaughtException:', e))
+
+const FILES = {
+  'index.html': 'text/html; charset=utf-8',
+  'style.css': 'text/css; charset=utf-8',
+  'app.js': 'text/javascript; charset=utf-8'
+}
+
+http.createServer(async (req, res) => {
+  try {
+    if (await api(req, res)) return
+    const p = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html'
+    const type = FILES[p]
+    const file = path.join(__dirname, p)
+    if (!type || !fs.existsSync(file)) { res.writeHead(404); return res.end('No encontrado') }
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' })
+    fs.createReadStream(file).pipe(res)
+  } catch (e) {
+    if (!res.headersSent) { res.writeHead(500); res.end('Error') }
+  }
+}).listen(process.env.PORT || 3000, () => console.log('YUTA Play v3 en marcha'))
