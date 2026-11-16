@@ -101,7 +101,7 @@ async function proxy(req, res, src) {
 
 module.exports = async (req, res) => {
   const u = new URL(req.url, 'http://x')
-  if (u.pathname !== '/api/stream' && u.pathname !== '/api/probe') return false
+  if (u.pathname !== '/api/stream' && u.pathname !== '/api/probe' && u.pathname !== '/api/diag') return false
   const id = u.searchParams.get('id') || ''
   const su = u.searchParams.get('u') || ''
   const title = (u.searchParams.get('t') || '').replace(/\(.*?\)|\[.*?\]/g, '').trim().slice(0, 120)
@@ -109,6 +109,15 @@ module.exports = async (req, res) => {
   const okSu = /^https:\/\/([\w-]+\.)?soundcloud\.com\//.test(su)
   if (!okId && !okSu) { send(res, 400, { error: 'Falta ?id= (YouTube) o ?u= (SoundCloud)' }); return true }
 
+  if (u.pathname === '/api/diag') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' })
+    res.write('Probando métodos, espera... (cada línea sale al terminar)\n\n')
+    const tr = { n: 0, push(x) { this.n++; res.write((x.ok ? 'OK     ' : 'FALLÓ  ') + x.metodo + (x.error ? ' → ' + x.error : '') + '\n') }, get length() { return this.n } }
+    try { await resolve(okId ? id : '', su, title, tr, true); res.write('\nRESULTADO: hay un método que funciona\n') }
+    catch (e) { res.write('\nRESULTADO: ' + errMsg(e) + '\n') }
+    res.end()
+    return true
+  }
   const trace = []
   try {
     const i = okId ? id : ''
