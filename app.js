@@ -54,7 +54,7 @@ function chips(el,arr,cur,fn){
   el.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));fn(b.dataset.v)};
 }
 function rows(el,items,t){
-  el.innerHTML=items.map((x,i)=>'<div class="row rip" data-i="'+i+'" data-id="'+esc(x.id)+'" style="--d:'+Math.min(i,12)*45+'ms"><img loading="lazy" alt="" src="'+esc(x.img||BLANK)+'"><div class="tx"><p>'+esc(x.title)+'</p><small>'+esc(x.by)+'</small></div>'+(t==='m'?'<span class="eq"><i></i><i></i><i></i></span>':'')+'</div>').join('');
+  el.innerHTML=items.map((x,i)=>'<div class="row rip" data-i="'+i+'" data-id="'+esc(x.id)+'" style="--d:'+Math.min(i,12)*45+'ms"><img loading="lazy" alt="" src="'+esc(x.img||BLANK)+'"><div class="tx"><p>'+(x.nuevo?'<em class="nw">NUEVO</em> ':'')+esc(x.title)+'</p><small>'+esc(x.by)+'</small></div>'+(t==='m'?'<span class="eq"><i></i><i></i><i></i></span>':'')+'</div>').join('');
 }
 function skeleton(el){el.innerHTML='<div class="sk"></div>'.repeat(6)}
 function mark(){
@@ -121,17 +121,52 @@ async function loadHome(){
     H.loaded=true;rows(el,H.list,'m');mark();
   }catch(e){el.innerHTML='<p class="msg">No se pudo cargar la música. Revisa tu conexión.</p>'}
 }
+const mapApi=x=>({id:x.id,title:x.title,by:(x.by||'')+(x.dur?' · '+x.dur:''),img:x.img,
+  src:'/api/stream?'+(x.u?'u='+encodeURIComponent(x.u):'id='+encodeURIComponent(x.id))+'&t='+encodeURIComponent(x.title)});
+async function apiGet(url){
+  const r=await fetch(url);
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||'Error del servidor');
+  return (j.results||[]).map(mapApi);
+}
+async function fetchMusic(){
+  if(M.q){
+    try{const l=await apiGet('/api/search?q='+encodeURIComponent(M.q));if(l.length)return{list:l,head:'Resultados: '+M.q}}catch(e){console.log(e)}
+    const d=await audius('tracks/search?query='+encodeURIComponent(M.q));
+    return{list:d.filter(t=>t.is_streamable!==false).map(mapTrack),head:'Resultados: '+M.q};
+  }
+  if(M.feed==='new'){
+    try{const l=await apiGet('/api/new');if(l.length)return{list:l,head:'Novedades de YouTube Music'}}catch(e){console.log(e)}
+  }
+  const d=await audius('tracks/trending');
+  return{list:d.filter(t=>t.is_streamable!==false).map(mapTrack),head:'Tendencias'};
+}
 async function loadMusic(){
   const el=$('mlist');skeleton(el);
   try{
-    const p=M.q?'tracks/search?query='+encodeURIComponent(M.q):'tracks/trending'+(M.genre?'?genre='+encodeURIComponent(M.genre):'');
-    const d=await audius(p);
-    M.list=d.filter(t=>t.is_streamable!==false).map(mapTrack);
-    M.loaded=true;
-    $('mh').textContent=M.q?'Resultados: '+M.q:(M.genre||'Tendencias');
-    if(M.list.length){rows(el,M.list,'m');mark()}else el.innerHTML='<p class="msg">Sin resultados.</p>';
+    const r=await fetchMusic();
+    M.list=r.list;M.loaded=true;
+    $('mh').textContent=r.head;
+    if(r.list.length){rows(el,r.list,'m');mark()}else el.innerHTML='<p class="msg">Sin resultados.</p>';
   }catch(e){el.innerHTML='<p class="msg">No se pudo cargar. Intenta de nuevo.</p>'}
 }
+async function refreshMusic(){
+  if(document.hidden||!$('v-music').classList.contains('on')||!M.loaded)return;
+  if(!M.q&&M.feed!=='new')return;
+  try{
+    const r=await fetchMusic();
+    const have=new Set(M.list.map(x=>String(x.id)));
+    const fresh=r.list.filter(x=>!have.has(String(x.id)));
+    if(!fresh.length)return;
+    fresh.forEach(x=>{x.nuevo=true});
+    const old=M.list;
+    M.list=fresh.concat(old);
+    if(queue===old){queue=M.list;qi+=fresh.length}
+    rows($('mlist'),M.list,'m');mark();
+    toast('🎵 '+fresh.length+(fresh.length>1?' canciones nuevas':' canción nueva'));
+  }catch(e){}
+}
+setInterval(refreshMusic,240000);
 
 /* reproductor de música */
 async function playSong(list,i){
@@ -284,7 +319,13 @@ $('fl-v').onclick=e=>{const r=e.target.closest('.row');if(r){const x=favs().filt
 /* buscadores y chips */
 $('mf').onsubmit=e=>{e.preventDefault();M.q=$('mq').value.trim();loadMusic()};
 $('vf').onsubmit=e=>{e.preventDefault();V.q=$('vs').value.trim();loadVideo()};
-chips($('mchips'),[['Tendencias',''],['Latin','Latin'],['Hip-Hop','Hip-Hop/Rap'],['Electrónica','Electronic'],['Pop','Pop'],['Lo-Fi','Lo-Fi'],['Rock','Rock']],'',v=>{M.genre=v;M.q='';$('mq').value='';loadMusic()});
+chips($('mchips'),[['Novedades','__new'],['Tendencias',''],['Phonk','phonk'],['Funk BR','funk brasileiro'],['Reggaetón','reggaeton'],['Pop latino','pop latino'],['Lo-Fi','lofi'],['Rock','rock']],'__new',v=>{
+  if(v==='__new'){M.feed='new';M.q='';$('mq').value=''}
+  else if(v===''){M.feed='';M.q='';$('mq').value=''}
+  else{M.feed='';M.q=v;$('mq').value=v}
+  loadMusic();
+});
+M.feed='new';
 chips($('vchips'),[['Películas','feature_films'],['Cine mudo','silent_films'],['Animación','animationandcartoons'],['TV clásica','classic_tv']],V.cat,v=>{V.cat=v;V.q='';$('vs').value='';loadVideo()});
 chips($('qset'),[['720p','720p'],['1080p','1080p'],['480p','480p']],V.ql,l=>{V.ql=l;store.set('ql',l);toast('Calidad por defecto: '+l)});
 $('hb-m').onclick=$('tile-m').onclick=()=>go('music');

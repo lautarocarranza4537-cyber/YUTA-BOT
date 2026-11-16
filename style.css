@@ -139,3 +139,4 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radiu
 #toast.on{opacity:1;transform:translate(-50%,0)}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+.nw{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.08em;color:#04101f;background:linear-gradient(135deg,var(--ac2),var(--ac));padding:2px 6px;border-radius:6px;margin-right:6px;vertical-align:middle;animation:pulse 2s ease-in-out infinite}
