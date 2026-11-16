@@ -78,7 +78,7 @@ document.addEventListener('touchend',e=>{
   sx=null;
 },{passive:true});
 
-const VIEWS=['home','search','music','video','favs','settings'];
+const VIEWS=['home','search','music','video','favs','link','settings'];
 function go(v){
   VIEWS.forEach(n=>$('v-'+n).classList.toggle('on',n===v));
   document.querySelectorAll('#menu button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
@@ -448,6 +448,42 @@ if($('sf')){
   }
   if($('tile-s'))$('tile-s').onclick=function(){go('search')};
 }
+
+/* vinculación con WhatsApp */
+(function(){
+  const form=$('lf');if(!form)return;
+  let timer=null,cur='';
+  const out=$('lout');
+  function stop(){clearInterval(timer);timer=null}
+  function show(x){out.innerHTML=x}
+  async function poll(){
+    try{
+      const r=await fetch('/api/wa/status?phone='+cur);const j=await r.json();
+      if(j.state==='open'){stop();show('<div class="wok">✅ ¡Vinculado! Ya puedes escribir <b>.play</b> y el nombre de una canción en cualquier chat de WhatsApp.</div>')}
+      else if(j.state==='none'){stop();show('<p class="msg">El código venció. Pide uno nuevo.</p>')}
+    }catch(e){}
+  }
+  form.onsubmit=async function(e){
+    e.preventDefault();stop();
+    const phone=$('lp').value.replace(/\D/g,'');
+    if(phone.length<8){toast('Escribe tu número completo con código de país');return}
+    cur=phone;show('<div class="sk"></div>');
+    try{
+      const r=await fetch('/api/wa/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone})});
+      const j=await r.json().catch(function(){return {}});
+      if(!r.ok)throw new Error(j.error||'No se pudo generar el código');
+      if(j.state==='open'){show('<div class="wok">✅ Este número ya está vinculado.</div>');return}
+      if(j.state==='connecting'){show('<p class="msg">Este número ya estaba vinculado y se está reconectando. Espera un momento.</p>');timer=setInterval(poll,3000);return}
+      show('<p class="note">Tu código de vinculación:</p><div class="wcode" id="lcode">'+esc(j.code)+'</div><button type="button" id="lcopy" class="btn rip">Copiar código</button><p class="note" style="margin-top:10px">Escríbelo en WhatsApp. Vence en unos 3 minutos. Esperando vinculación…</p>');
+      $('lcopy').onclick=function(){
+        const t=j.code.replace('-','');
+        if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){toast('Código copiado')},function(){toast('Copia el código a mano')});
+        else toast('Copia el código a mano');
+      };
+      timer=setInterval(poll,3000);
+    }catch(err){show('<p class="msg">'+esc(err.message)+'</p>')}
+  };
+})();
 
 applyImages();
 go('home');

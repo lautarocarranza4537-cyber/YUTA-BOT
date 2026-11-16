@@ -143,3 +143,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radiu
 .big{font-size:21px;font-weight:800;line-height:1.25;margin:10px 0 4px;text-shadow:0 0 22px rgba(127,196,255,.35)}
 .big span{color:var(--ac)}
 #smore{display:none;width:100%;margin-top:12px}
+
+.wcode{font-size:32px;font-weight:800;letter-spacing:.16em;text-align:center;padding:18px 8px;border:1px solid var(--ac);border-radius:16px;background:var(--card);box-shadow:var(--glow);margin:12px 0 8px;user-select:all;animation:vin .4s}
+.wok{padding:14px;border:1px solid #3fd18b;border-radius:14px;background:rgba(63,209,139,.08);margin:12px 0}

@@ -28,6 +28,7 @@
     <button class="rip" data-v="music" style="--i:1"><b>♪</b>Música</button>
     <button class="rip" data-v="video" style="--i:2"><b>▶</b>Videos</button>
     <button class="rip" data-v="favs" style="--i:3"><b>♥</b>Favoritos</button>
+    <button class="rip" data-v="link" style="--i:4"><b>📱</b>Vinculación por WhatsApp</button>
     <button class="rip" data-v="settings" style="--i:4"><b>⚙</b>Ajustes</button>
   </nav>
   <p class="dfoot">YUTA Play · música y videos sin anuncios</p>
@@ -117,6 +118,21 @@
     <p id="fe" class="msg">Aún no tienes favoritos. Toca ♥ en el reproductor o en un video.</p>
     <div id="fm"><h3 class="sec">Música</h3><div id="fl-m" class="list"></div></div>
     <div id="fv"><h3 class="sec">Videos</h3><div id="fl-v" class="list"></div></div>
+  </section>
+
+  <section id="v-link" class="view">
+    <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
+    <p class="note">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</p>
+    <form id="lf" class="s"><input id="lp" type="tel" inputmode="numeric" placeholder="5493513157041" autocomplete="off"><button class="btn fill rip">Obtener código</button></form>
+    <div id="lout"></div>
+    <div class="card">
+      <h3>Cómo vincular</h3>
+      <p>1. Toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.play</b> y el nombre de una canción en cualquier chat.</p>
+    </div>
+    <div class="card">
+      <h3>Importante</h3>
+      <p>Al vincular, este servidor queda como un dispositivo más de tu WhatsApp y puede leer los mensajes de esa cuenta, igual que WhatsApp Web. Vincula solo tu propio número, mejor uno secundario. Puedes quitarlo cuando quieras desde WhatsApp, en Dispositivos vinculados. WhatsApp no permite oficialmente los bots, así que la cuenta podría ser limitada.</p>
+    </div>
   </section>
 
   <section id="v-settings" class="view">
