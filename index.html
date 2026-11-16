@@ -24,6 +24,7 @@
   </div>
   <nav id="menu">
     <button class="rip on" data-v="home" style="--i:0"><b>⌂</b>Inicio</button>
+    <button class="rip" data-v="search" style="--i:1"><b>🔍</b>Buscar</button>
     <button class="rip" data-v="music" style="--i:1"><b>♪</b>Música</button>
     <button class="rip" data-v="video" style="--i:2"><b>▶</b>Videos</button>
     <button class="rip" data-v="favs" style="--i:3"><b>♥</b>Favoritos</button>
@@ -67,12 +68,23 @@
         </div>
       </div>
     </div>
+    <button id="tile-s" class="btn fill rip" style="width:100%;margin-bottom:12px">🔍 Busca tu música favorita con YUTA PLAY</button>
     <div class="tiles">
       <button id="tile-m" class="tile rip"><i>♪</i><b>Música</b><small>Tendencias y géneros</small></button>
       <button id="tile-v" class="tile rip"><i>▶</i><b>Videos</b><small>Películas y más</small></button>
     </div>
     <h3 class="sec">Ahora suena</h3>
     <div id="home-list" class="list"></div>
+  </section>
+
+  <section id="v-search" class="view">
+    <h2 class="big">Busca tu música favorita con <span>YUTA PLAY</span></h2>
+    <p class="note">Escribe el nombre de cualquier canción o artista.</p>
+    <form id="sf" class="s"><input id="sq" placeholder="Ej: Montagem Apollo" autocomplete="off" enterkeyhint="search"><button class="btn fill rip">Buscar</button></form>
+    <div id="ssug" class="chips"></div>
+    <h3 id="sh" class="sec"></h3>
+    <div id="slist" class="list"></div>
+    <button id="smore" class="btn rip">Cargar más</button>
   </section>
 
   <section id="v-music" class="view">

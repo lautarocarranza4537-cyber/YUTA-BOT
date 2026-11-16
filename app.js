@@ -58,7 +58,7 @@ function rows(el,items,t){
 }
 function skeleton(el){el.innerHTML='<div class="sk"></div>'.repeat(6)}
 function mark(){
-  document.querySelectorAll('#mlist .row,#home-list .row,#fl-m .row').forEach(r=>r.classList.toggle('on',curId!==null&&r.dataset.id===String(curId)));
+  document.querySelectorAll('#mlist .row,#home-list .row,#fl-m .row,#slist .row').forEach(r=>r.classList.toggle('on',curId!==null&&r.dataset.id===String(curId)));
 }
 
 /* menú lateral */
@@ -78,7 +78,7 @@ document.addEventListener('touchend',e=>{
   sx=null;
 },{passive:true});
 
-const VIEWS=['home','music','video','favs','settings'];
+const VIEWS=['home','search','music','video','favs','settings'];
 function go(v){
   VIEWS.forEach(n=>$('v-'+n).classList.toggle('on',n===v));
   document.querySelectorAll('#menu button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
@@ -86,6 +86,7 @@ function go(v){
   window.scrollTo({top:0,behavior:'smooth'});
   if(v==='music'&&!M.loaded)loadMusic();
   if(v==='video'&&!V.loaded)loadVideo();
+  if(v==='search'&&!SR.list.length)setTimeout(function(){$('sq').focus()},400);
   if(v==='favs')drawFavs();
   if(v==='home')loadHome();
 }
@@ -373,6 +374,70 @@ $('f-av').onchange=()=>pickImg($('f-av'),'avatar',320);
 $('f-bn').onchange=()=>pickImg($('f-bn'),'banner',900);
 $('set-reset').onclick=()=>{store.set('avatar','');store.set('banner','');applyImages();toast('Imágenes quitadas')};
 $('clrfav').onclick=()=>{store.set('fav',[]);updateFavBtns();drawFavs();toast('Favoritos borrados')};
+
+/* buscador de música */
+const SR={q:'',list:[],next:null,busy:false,seen:new Set()};
+async function runSearch(q,more){
+  if(SR.busy)return;
+  SR.busy=true;
+  const el=$('slist');
+  if(!more){
+    SR.q=q;SR.list=[];SR.next=null;SR.seen=new Set();
+    skeleton(el);$('smore').style.display='none';
+    $('sh').textContent='Resultados: '+q;
+  }
+  try{
+    const url='/api/find?q='+encodeURIComponent(SR.q)+(more&&SR.next?'&t='+encodeURIComponent(SR.next):'');
+    const r=await fetch(url);
+    const j=await r.json().catch(function(){return {}});
+    if(!r.ok)throw new Error(j.error||'Error del buscador');
+    const add=(j.results||[]).map(mapApi).filter(function(x){return !SR.seen.has(String(x.id))});
+    add.forEach(function(x){SR.seen.add(String(x.id))});
+    SR.list=SR.list.concat(add);
+    SR.next=SR.list.length>=150?null:(j.next||null);
+    if(SR.list.length){rows(el,SR.list,'m');mark()}
+    else el.innerHTML='<p class="msg">Sin resultados. Prueba con otro nombre.</p>';
+    $('smore').style.display=SR.next?'block':'none';
+  }catch(e){
+    if(!more)el.innerHTML='<p class="msg">'+esc(e.message||'No se pudo buscar')+'</p>';
+    else toast('No se pudo cargar más');
+  }
+  SR.busy=false;
+}
+function sugChips(arr){
+  chips($('ssug'),arr.map(function(x){return [x,x]}),'',function(v){$('sq').value=v;runSearch(v,false)});
+}
+if($('sf')){
+  const IDEAS=['Montagem Apollo','Bad Bunny','Phonk','Peso Pluma','Karol G','Funk','Lo-Fi','Rock en español'];
+  sugChips(IDEAS);
+  $('slist').innerHTML='<p class="msg">Escribe arriba o toca una sugerencia.</p>';
+  $('sf').onsubmit=function(e){
+    e.preventDefault();
+    const q=$('sq').value.trim();
+    if(q){$('sq').blur();runSearch(q,false)}
+  };
+  let st;
+  $('sq').oninput=function(){
+    clearTimeout(st);
+    const q=$('sq').value.trim();
+    if(!q){sugChips(IDEAS);return}
+    st=setTimeout(async function(){
+      try{
+        const r=await fetch('/api/suggest?q='+encodeURIComponent(q));
+        const j=await r.json();
+        if($('sq').value.trim()===q&&j.suggestions&&j.suggestions.length)sugChips(j.suggestions);
+      }catch(e){}
+    },280);
+  };
+  $('slist').onclick=function(e){const r=e.target.closest('.row');if(r)playSong(SR.list,+r.dataset.i)};
+  $('smore').onclick=function(){if(SR.next&&!SR.busy)runSearch(SR.q,true)};
+  if('IntersectionObserver' in window){
+    new IntersectionObserver(function(en){
+      if(en[0].isIntersecting&&SR.next&&!SR.busy)runSearch(SR.q,true);
+    },{rootMargin:'300px'}).observe($('smore'));
+  }
+  if($('tile-s'))$('tile-s').onclick=function(){go('search')};
+}
 
 applyImages();
 go('home');

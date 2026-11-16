@@ -288,3 +288,5 @@ module.exports = async (req, res) => {
   }
   return true
 }
+
+module.exports.h = { searchYTMusic, search }
