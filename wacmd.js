@@ -72,7 +72,7 @@ async function findSong(q) {
 
 async function getAudio(item) {
   const qs = (item.u ? 'u=' + encodeURIComponent(item.u) : 'id=' + encodeURIComponent(item.id)) + (item.title ? '&t=' + encodeURIComponent(item.title) : '')
-  const r = await fetch(BASE() + '/api/stream?' + qs, { signal: AbortSignal.timeout(150000) })
+  const r = await fetch(BASE() + '/api/stream?' + qs, { signal: AbortSignal.timeout(280000) })
   if (!r.ok) {
     const j = await r.json().catch(() => ({}))
     throw new Error(j.error || 'HTTP ' + r.status)

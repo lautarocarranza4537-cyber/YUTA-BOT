@@ -1,7 +1,7 @@
 const { spawn } = require('child_process')
 const { Readable } = require('stream')
 const C = require('./core')
-const { S, ready, errMsg, host, fetchJson, INVIDIOUS, PIPED, CLIENTS, UA } = C
+const { S, ready, errMsg, host, fetchJson, INVIDIOUS, PIPED, UA } = C
 
 const YT_FMT = 'bestaudio[ext=m4a]/140/bestaudio'
 const SC_FMT = 'http_mp3/bestaudio[protocol^=http]/bestaudio'
@@ -14,8 +14,35 @@ const send = (res, code, obj) => {
   res.end(JSON.stringify(obj))
 }
 
-// Link directo del audio (-g), sin descargar nada
-function ytdlpUrl(target, fmt, extra = [], ms = 25000) {
+// Clientes de YouTube (la app móvil entrega links directos)
+const IT = [
+  { name: 'vr', id: 28, ua: 'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+    ctx: { clientName: 'ANDROID_VR', clientVersion: '1.60.19', deviceMake: 'Oculus', deviceModel: 'Quest 3', androidSdkVersion: 32, osName: 'Android', osVersion: '12L', hl: 'en', gl: 'US' } },
+  { name: 'ios', id: 5, ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X)',
+    ctx: { clientName: 'IOS', clientVersion: '20.10.4', deviceMake: 'Apple', deviceModel: 'iPhone16,2', osName: 'iPhone', osVersion: '18.3.2.22D82', hl: 'en', gl: 'US' } },
+  { name: 'android', id: 3, ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip',
+    ctx: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 30, osName: 'Android', osVersion: '11', hl: 'en', gl: 'US' } }
+]
+
+async function innertube(id, c) {
+  const r = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': c.ua, 'X-YouTube-Client-Name': String(c.id), 'X-YouTube-Client-Version': c.ctx.clientVersion, Origin: 'https://www.youtube.com' },
+    body: JSON.stringify({ context: { client: c.ctx }, videoId: id, contentCheckOk: true, racyCheckOk: true }),
+    signal: AbortSignal.timeout(10000)
+  })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  const j = await r.json()
+  const st = j.playabilityStatus
+  if (st && st.status && st.status !== 'OK') throw new Error(String(st.reason || st.status).slice(0, 120))
+  const fm = (j.streamingData && j.streamingData.adaptiveFormats) || []
+  const a = fm.filter(f => /^audio\/mp4/.test(f.mimeType || '') && f.url)
+  const pick = a.find(f => f.itag === 140) || a.sort((x, y) => (y.bitrate || 0) - (x.bitrate || 0))[0]
+  if (!pick) throw new Error('sin link directo de audio')
+  return { url: pick.url, ua: c.ua }
+}
+
+function ytdlpUrl(target, fmt, extra = [], ms = 60000) {
   return new Promise((resolve, reject) => {
     if (S.err) return reject(new Error(S.err))
     const p = spawn(S.bin, ['--no-playlist', '--no-warnings', '-q', '-g', '-f', fmt, ...S.js, ...extra, ...S.cookies, '--', target])
@@ -33,15 +60,15 @@ function ytdlpUrl(target, fmt, extra = [], ms = 25000) {
   })
 }
 
-// Comprueba que el link realmente entrega audio
-async function check(url) {
-  const r = await fetch(url, { headers: { Range: 'bytes=0-1', 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(10000) })
+async function check(o) {
+  const ua = o.ua || UA
+  const r = await fetch(o.url, { headers: { Range: 'bytes=0-1', 'User-Agent': ua }, redirect: 'follow', signal: AbortSignal.timeout(10000) })
   const ct = r.headers.get('content-type') || ''
   try { if (r.body) await r.body.cancel() } catch {}
   if (r.status !== 200 && r.status !== 206) throw new Error('HTTP ' + r.status)
-  if (/mpegurl/i.test(ct) || /\.m3u8/.test(url)) throw new Error('formato HLS no soportado')
+  if (/mpegurl/i.test(ct) || /\.m3u8/.test(o.url)) throw new Error('formato HLS no soportado')
   if (!/audio|video|octet-stream/i.test(ct)) throw new Error('no es audio (' + ct.slice(0, 30) + ')')
-  return { url, ct }
+  return { url: o.url, ct, ua }
 }
 
 async function resolve(id, su, title, trace, fresh) {
@@ -54,8 +81,7 @@ async function resolve(id, su, title, trace, fresh) {
   const att = []
   if (id) {
     const yt = 'https://youtu.be/' + id
-    att.push(['yt-dlp', () => ytdlpUrl(yt, YT_FMT)])
-    for (const c of CLIENTS) att.push([`yt-dlp(${c})`, () => ytdlpUrl(yt, YT_FMT, ['--extractor-args', 'youtube:player_client=' + c])])
+    for (const c of IT) att.push(['youtube-' + c.name, () => innertube(id, c)])
     for (const b of INVIDIOUS) att.push([`invidious ${host(b)}`, async () => `${b}/latest_version?id=${id}&itag=140&local=true`])
     for (const b of PIPED) att.push([`piped ${host(b)}`, async () => {
       const j = await fetchJson(`${b}/streams/${id}`, 6000)
@@ -63,15 +89,18 @@ async function resolve(id, su, title, trace, fresh) {
       if (!a || !a.url) throw new Error('sin stream')
       return a.url
     }])
+    att.push(['yt-dlp', () => ytdlpUrl(yt, YT_FMT)])
+    att.push(['yt-dlp(tv)', () => ytdlpUrl(yt, YT_FMT, ['--extractor-args', 'youtube:player_client=tv'])])
     if (title) att.push(['soundcloud (respaldo)', () => ytdlpUrl('scsearch1:' + title, SC_FMT)])
   } else att.push(['soundcloud', () => ytdlpUrl(su, SC_FMT)])
 
-  const deadline = Date.now() + 70000
+  const deadline = Date.now() + 170000
   for (const [name, fn] of att) {
     if (Date.now() > deadline) { trace.push({ metodo: name, ok: false, error: 'tiempo agotado' }); break }
     const t0 = Date.now()
     try {
-      const v = await check(await fn())
+      const raw = await fn()
+      const v = await check(typeof raw === 'string' ? { url: raw } : raw)
       trace.push({ metodo: name, ok: true, ms: Date.now() - t0 })
       cache.set(key, { t: Date.now(), v })
       if (cache.size > 200) cache.delete(cache.keys().next().value)
@@ -85,9 +114,8 @@ async function resolve(id, su, title, trace, fresh) {
   throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
 }
 
-// Reenvía el audio al navegador, con soporte de saltos (Range)
 async function proxy(req, res, src) {
-  const headers = { 'User-Agent': UA }
+  const headers = { 'User-Agent': src.ua || UA }
   if (req.headers.range) headers.Range = req.headers.range
   const ac = new AbortController()
   res.on('close', () => ac.abort())
@@ -112,12 +140,13 @@ module.exports = async (req, res) => {
   if (u.pathname === '/api/diag') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' })
     res.write('Probando métodos, espera... (cada línea sale al terminar)\n\n')
-    const tr = { n: 0, push(x) { this.n++; res.write((x.ok ? 'OK     ' : 'FALLÓ  ') + x.metodo + (x.error ? ' → ' + x.error : '') + '\n') }, get length() { return this.n } }
+    const tr = { n: 0, push(x) { this.n++; res.write((x.ok ? 'OK     ' : 'FALLÓ  ') + x.metodo + (x.ms ? ' (' + x.ms + ' ms)' : '') + (x.error ? ' → ' + x.error : '') + '\n') }, get length() { return this.n } }
     try { await resolve(okId ? id : '', su, title, tr, true); res.write('\nRESULTADO: hay un método que funciona\n') }
     catch (e) { res.write('\nRESULTADO: ' + errMsg(e) + '\n') }
     res.end()
     return true
   }
+
   const trace = []
   try {
     const i = okId ? id : ''
