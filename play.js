@@ -1,20 +1,21 @@
 const { spawn } = require('child_process')
 const { Readable } = require('stream')
 const C = require('./core')
-const { S, ready, errMsg, host, fetchJson, INVIDIOUS, PIPED, UA } = C
+const sh = require('./shield')
+const { S, ready, errMsg, host, fetchJson, UA } = C
 
 const YT_FMT = 'bestaudio[ext=m4a]/140/bestaudio'
 const SC_FMT = 'http_mp3/bestaudio[protocol^=http]/bestaudio'
 const TTL = 20 * 60 * 1000
+const RELAY = (process.env.RELAY_URL || '').replace(/\/+$/, '')
 const cache = new Map()
 const keyOf = (id, su) => (id ? 'y:' + id : 's:' + su)
 
 const send = (res, code, obj) => {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-  res.end(JSON.stringify(obj))
+  res.end(JSON.stringify(obj, null, 2))
 }
 
-// Clientes de YouTube (la app móvil entrega links directos)
 const IT = [
   { name: 'vr', id: 28, ua: 'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
     ctx: { clientName: 'ANDROID_VR', clientVersion: '1.60.19', deviceMake: 'Oculus', deviceModel: 'Quest 3', androidSdkVersion: 32, osName: 'Android', osVersion: '12L', hl: 'en', gl: 'US' } },
@@ -71,6 +72,12 @@ async function check(o) {
   return { url: o.url, ct, ua }
 }
 
+// Orden adaptativo: primero lo que funciona, al final lo que está en pausa; SoundCloud siempre al final
+function order(list) {
+  const rank = a => (a.last ? 2 : sh.cooling(a.name) ? 1 : 0)
+  return list.sort((a, b) => rank(a) - rank(b) || sh.score(b.name, b.base) - sh.score(a.name, a.base))
+}
+
 async function resolve(id, su, title, trace, fresh) {
   const key = keyOf(id, su)
   if (fresh) cache.delete(key)
@@ -81,34 +88,38 @@ async function resolve(id, su, title, trace, fresh) {
   const att = []
   if (id) {
     const yt = 'https://youtu.be/' + id
-    for (const c of IT) att.push(['youtube-' + c.name, () => innertube(id, c)])
-    for (const b of INVIDIOUS) att.push([`invidious ${host(b)}`, async () => `${b}/latest_version?id=${id}&itag=140&local=true`])
-    for (const b of PIPED) att.push([`piped ${host(b)}`, async () => {
+    if (RELAY) att.push({ name: 'relay', base: 90, fn: async () => ({ url: RELAY + '/api/stream?id=' + id }) })
+    for (const c of IT) att.push({ name: 'youtube-' + c.name, base: 60, fn: () => innertube(id, c) })
+    for (const b of sh.inv()) att.push({ name: 'invidious ' + host(b), base: 30, fn: async () => `${b}/latest_version?id=${id}&itag=140&local=true` })
+    for (const b of sh.pip()) att.push({ name: 'piped ' + host(b), base: 20, fn: async () => {
       const j = await fetchJson(`${b}/streams/${id}`, 6000)
       const a = (j.audioStreams || []).find(x => /mp4/.test(x.mimeType || '')) || (j.audioStreams || [])[0]
       if (!a || !a.url) throw new Error('sin stream')
       return a.url
-    }])
-    att.push(['yt-dlp', () => ytdlpUrl(yt, YT_FMT)])
-    att.push(['yt-dlp(tv)', () => ytdlpUrl(yt, YT_FMT, ['--extractor-args', 'youtube:player_client=tv'])])
-    if (title) att.push(['soundcloud (respaldo)', () => ytdlpUrl('scsearch1:' + title, SC_FMT)])
-  } else att.push(['soundcloud', () => ytdlpUrl(su, SC_FMT)])
+    } })
+    att.push({ name: 'yt-dlp', base: 12, fn: () => ytdlpUrl(yt, YT_FMT) })
+    att.push({ name: 'yt-dlp(tv)', base: 10, fn: () => ytdlpUrl(yt, YT_FMT, ['--extractor-args', 'youtube:player_client=tv']) })
+    if (title) att.push({ name: 'soundcloud (respaldo)', base: 0, last: true, fn: () => ytdlpUrl('scsearch1:' + title, SC_FMT) })
+  } else att.push({ name: 'soundcloud', base: 0, last: true, fn: () => ytdlpUrl(su, SC_FMT) })
 
   const deadline = Date.now() + 170000
-  for (const [name, fn] of att) {
-    if (Date.now() > deadline) { trace.push({ metodo: name, ok: false, error: 'tiempo agotado' }); break }
+  for (const a of order(att)) {
+    if (Date.now() > deadline) { trace.push({ metodo: a.name, ok: false, error: 'tiempo agotado' }); break }
     const t0 = Date.now()
     try {
-      const raw = await fn()
+      const raw = await a.fn()
       const v = await check(typeof raw === 'string' ? { url: raw } : raw)
-      trace.push({ metodo: name, ok: true, ms: Date.now() - t0 })
+      const ms = Date.now() - t0
+      sh.rec(a.name, true, ms)
+      trace.push({ metodo: a.name, ok: true, ms })
       cache.set(key, { t: Date.now(), v })
       if (cache.size > 200) cache.delete(cache.keys().next().value)
-      console.log('✅ audio por', name)
+      console.log('✅ audio por', a.name)
       return v
     } catch (e) {
-      trace.push({ metodo: name, ok: false, ms: Date.now() - t0, error: errMsg(e).slice(0, 160) })
-      console.log('⚠', name, '→', errMsg(e))
+      sh.rec(a.name, false, Date.now() - t0, errMsg(e))
+      trace.push({ metodo: a.name, ok: false, ms: Date.now() - t0, error: errMsg(e).slice(0, 160) })
+      console.log('⚠', a.name, '→', errMsg(e))
     }
   }
   throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
@@ -127,9 +138,22 @@ async function proxy(req, res, src) {
   Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res)
 }
 
+// Chequeo propio cada 15 min (mantiene las estadísticas al día)
+let checking = false
+async function selfCheck() {
+  if (checking) return
+  checking = true
+  try { await resolve('dQw4w9WgXcQ', '', '', [], true) } catch {}
+  checking = false
+}
+setTimeout(selfCheck, 90000)
+setInterval(selfCheck, 15 * 60000).unref()
+
 module.exports = async (req, res) => {
   const u = new URL(req.url, 'http://x')
-  if (u.pathname !== '/api/stream' && u.pathname !== '/api/probe' && u.pathname !== '/api/diag') return false
+  const p = u.pathname
+  if (p === '/api/shield') { send(res, 200, sh.status()); return true }
+  if (p !== '/api/stream' && p !== '/api/probe' && p !== '/api/diag') return false
   const id = u.searchParams.get('id') || ''
   const su = u.searchParams.get('u') || ''
   const title = (u.searchParams.get('t') || '').replace(/\(.*?\)|\[.*?\]/g, '').trim().slice(0, 120)
@@ -137,7 +161,7 @@ module.exports = async (req, res) => {
   const okSu = /^https:\/\/([\w-]+\.)?soundcloud\.com\//.test(su)
   if (!okId && !okSu) { send(res, 400, { error: 'Falta ?id= (YouTube) o ?u= (SoundCloud)' }); return true }
 
-  if (u.pathname === '/api/diag') {
+  if (p === '/api/diag') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' })
     res.write('Probando métodos, espera... (cada línea sale al terminar)\n\n')
     const tr = { n: 0, push(x) { this.n++; res.write((x.ok ? 'OK     ' : 'FALLÓ  ') + x.metodo + (x.ms ? ' (' + x.ms + ' ms)' : '') + (x.error ? ' → ' + x.error : '') + '\n') }, get length() { return this.n } }
@@ -151,7 +175,7 @@ module.exports = async (req, res) => {
   try {
     const i = okId ? id : ''
     const src = await resolve(i, su, title, trace, false)
-    if (u.pathname === '/api/probe') { send(res, 200, { ok: true, trace }); return true }
+    if (p === '/api/probe') { send(res, 200, { ok: true, trace }); return true }
     try {
       await proxy(req, res, src)
     } catch (e) {
