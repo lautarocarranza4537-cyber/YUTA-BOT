@@ -38,9 +38,25 @@ async function setup() {
 const ready = new Promise(r => setTimeout(r, 100)).then(setup).catch(e => { S.err = errMsg(e); console.error('❌ yt-dlp:', S.err) })
 
 if (process.env.YT_COOKIES) {
-  const f = path.join(os.tmpdir(), 'yt-cookies.txt')
-  fs.writeFileSync(f, process.env.YT_COOKIES)
-  S.cookies = ['--cookies', f]
+  try {
+    const raw = process.env.YT_COOKIES.replace(/\\n/g, '\n').replace(/\r\n?/g, '\n')
+    const rows = []
+    for (const l0 of raw.split('\n')) {
+      const l = l0.trim()
+      if (!l) continue
+      if (l.startsWith('#') && !l.startsWith('#HttpOnly_')) continue
+      const f = l.split(/\s+/)
+      if (f.length >= 7 && /^(TRUE|FALSE)$/i.test(f[1]) && /^(TRUE|FALSE)$/i.test(f[3])) {
+        rows.push([...f.slice(0, 6), f.slice(6).join(' ')].join('\t'))
+      }
+    }
+    if (rows.length) {
+      const file = path.join(os.tmpdir(), 'yt-cookies.txt')
+      fs.writeFileSync(file, '# Netscape HTTP Cookie File\n' + rows.join('\n') + '\n')
+      S.cookies = ['--cookies', file]
+      console.log('🍪 cookies cargadas:', rows.length)
+    } else console.log('⚠ YT_COOKIES no tiene formato válido, la ignoro')
+  } catch (e) { console.log('⚠ error en YT_COOKIES:', e.message) }
 }
 
 async function fetchJson(u, ms = 6000, opts = {}) {
