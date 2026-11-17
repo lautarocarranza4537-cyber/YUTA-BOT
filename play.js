@@ -7,6 +7,7 @@ const { S, ready, errMsg, host, fetchJson, UA } = C
 const YT_FMT = 'bestaudio[ext=m4a]/140/bestaudio'
 const SC_FMT = 'http_mp3/bestaudio[protocol^=http]/bestaudio'
 const TTL = 20 * 60 * 1000
+const CAP = 25 * 1024 * 1024
 const RELAY = (process.env.RELAY_URL || '').replace(/\/+$/, '')
 const cache = new Map()
 const keyOf = (id, su) => (id ? 'y:' + id : 's:' + su)
@@ -65,18 +66,40 @@ async function check(o) {
   const ua = o.ua || UA
   const r = await fetch(o.url, { headers: { Range: 'bytes=0-1', 'User-Agent': ua }, redirect: 'follow', signal: AbortSignal.timeout(10000) })
   const ct = r.headers.get('content-type') || ''
+  const m = (r.headers.get('content-range') || '').match(/\/(\d+)$/)
   try { if (r.body) await r.body.cancel() } catch {}
   if (r.status !== 200 && r.status !== 206) throw new Error('HTTP ' + r.status)
   if (/mpegurl/i.test(ct) || /\.m3u8/.test(o.url)) throw new Error('formato HLS no soportado')
   if (!/audio|video|octet-stream/i.test(ct)) throw new Error('no es audio (' + ct.slice(0, 30) + ')')
-  return { url: o.url, ct, ua }
+  return { url: o.url, ct, ua, total: m ? +m[1] : 0 }
 }
 
-// Orden adaptativo: primero lo que funciona, al final lo que está en pausa; SoundCloud siempre al final
 function order(list) {
   const rank = a => (a.last ? 2 : sh.cooling(a.name) ? 1 : 0)
   return list.sort((a, b) => rank(a) - rank(b) || sh.score(b.name, b.base) - sh.score(a.name, a.base))
 }
+
+async function attempt(a, trace) {
+  const t0 = Date.now()
+  try {
+    const raw = await a.fn()
+    const v = await check(typeof raw === 'string' ? { url: raw } : raw)
+    const ms = Date.now() - t0
+    sh.rec(a.name, true, ms)
+    trace.push({ metodo: a.name, ok: true, ms })
+    return v
+  } catch (e) {
+    sh.rec(a.name, false, Date.now() - t0, errMsg(e))
+    trace.push({ metodo: a.name, ok: false, ms: Date.now() - t0, error: errMsg(e).slice(0, 160) })
+    console.log('⚠', a.name, '→', errMsg(e))
+    throw e
+  }
+}
+const firstOf = ps => new Promise((resolve, reject) => {
+  let left = ps.length
+  if (!left) return reject(new Error('sin métodos'))
+  ps.forEach(p => p.then(resolve, () => { if (--left === 0) reject(new Error('todos fallaron')) }))
+})
 
 async function resolve(id, su, title, trace, fresh) {
   const key = keyOf(id, su)
@@ -97,32 +120,28 @@ async function resolve(id, su, title, trace, fresh) {
       if (!a || !a.url) throw new Error('sin stream')
       return a.url
     } })
-    att.push({ name: 'yt-dlp', base: 12, fn: () => ytdlpUrl(yt, YT_FMT) })
-    att.push({ name: 'yt-dlp(tv)', base: 10, fn: () => ytdlpUrl(yt, YT_FMT, ['--extractor-args', 'youtube:player_client=tv']) })
-    if (title) att.push({ name: 'soundcloud (respaldo)', base: 0, last: true, fn: () => ytdlpUrl('scsearch1:' + title, SC_FMT) })
-  } else att.push({ name: 'soundcloud', base: 0, last: true, fn: () => ytdlpUrl(su, SC_FMT) })
+    att.push({ name: 'yt-dlp', base: 12, slow: true, fn: () => ytdlpUrl(yt, YT_FMT) })
+    att.push({ name: 'yt-dlp(tv)', base: 10, slow: true, fn: () => ytdlpUrl(yt, YT_FMT, ['--extractor-args', 'youtube:player_client=tv']) })
+    if (title) att.push({ name: 'soundcloud (respaldo)', base: 0, last: true, slow: true, fn: () => ytdlpUrl('scsearch1:' + title, SC_FMT) })
+  } else att.push({ name: 'soundcloud', base: 0, last: true, slow: true, fn: () => ytdlpUrl(su, SC_FMT) })
 
+  const ordered = order(att)
+  const fastG = ordered.filter(a => !a.slow)
+  const slowG = ordered.filter(a => a.slow)
   const deadline = Date.now() + 170000
-  for (const a of order(att)) {
-    if (Date.now() > deadline) { trace.push({ metodo: a.name, ok: false, error: 'tiempo agotado' }); break }
-    const t0 = Date.now()
-    try {
-      const raw = await a.fn()
-      const v = await check(typeof raw === 'string' ? { url: raw } : raw)
-      const ms = Date.now() - t0
-      sh.rec(a.name, true, ms)
-      trace.push({ metodo: a.name, ok: true, ms })
-      cache.set(key, { t: Date.now(), v })
-      if (cache.size > 200) cache.delete(cache.keys().next().value)
-      console.log('✅ audio por', a.name)
-      return v
-    } catch (e) {
-      sh.rec(a.name, false, Date.now() - t0, errMsg(e))
-      trace.push({ metodo: a.name, ok: false, ms: Date.now() - t0, error: errMsg(e).slice(0, 160) })
-      console.log('⚠', a.name, '→', errMsg(e))
-    }
+  let found = null
+  for (let i = 0; i < fastG.length && !found && Date.now() < deadline; i += 3) {
+    try { found = await firstOf(fastG.slice(i, i + 3).map(a => attempt(a, trace))) } catch {}
   }
-  throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
+  for (const a of slowG) {
+    if (found || Date.now() > deadline) break
+    try { found = await attempt(a, trace) } catch {}
+  }
+  if (!found) throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
+  cache.set(key, { t: Date.now(), v: found })
+  if (cache.size > 200) cache.delete(cache.keys().next().value)
+  console.log('✅ audio listo')
+  return found
 }
 
 async function proxy(req, res, src) {
@@ -138,7 +157,54 @@ async function proxy(req, res, src) {
   Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res)
 }
 
-// Chequeo propio cada 15 min (mantiene las estadísticas al día)
+// ───── descarga rápida en tramos paralelos (la usa el bot) ─────
+async function fetchRange(src, a, b) {
+  const r = await fetch(src.url, { headers: { 'User-Agent': src.ua || UA, Range: 'bytes=' + a + '-' + b }, redirect: 'follow', signal: AbortSignal.timeout(60000) })
+  if (r.status !== 206) throw new Error('rango no soportado (' + r.status + ')')
+  const buf = Buffer.from(await r.arrayBuffer())
+  if (buf.length !== b - a + 1) throw new Error('rango incompleto')
+  return buf
+}
+async function downloadSingle(src) {
+  const r = await fetch(src.url, { headers: { 'User-Agent': src.ua || UA }, redirect: 'follow', signal: AbortSignal.timeout(120000) })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  const chunks = []
+  let n = 0
+  for await (const c of r.body) {
+    n += c.length
+    if (n > CAP) throw new Error('El archivo es muy pesado')
+    chunks.push(c)
+  }
+  return Buffer.concat(chunks)
+}
+async function download(src) {
+  const total = src.total
+  if (total > CAP) throw new Error('El archivo es muy pesado')
+  if (total > 400 * 1024) {
+    const N = total > 6 * 1024 * 1024 ? 6 : 4
+    const size = Math.ceil(total / N)
+    try {
+      const parts = await Promise.all(Array.from({ length: N }, (_, i) => fetchRange(src, i * size, Math.min(total - 1, (i + 1) * size - 1))))
+      return Buffer.concat(parts)
+    } catch (e) { console.log('⚠ descarga paralela falló:', errMsg(e), '→ descarga simple') }
+  }
+  return downloadSingle(src)
+}
+async function audio(id, su, title) {
+  const trace = []
+  const t0 = Date.now()
+  let src = await resolve(id, su, title, trace, false)
+  const t1 = Date.now()
+  let buf
+  try { buf = await download(src) } catch (e) {
+    console.log('⚠ link guardado falló →', errMsg(e))
+    src = await resolve(id, su, title, trace, true)
+    buf = await download(src)
+  }
+  console.log('⏱ link ' + (t1 - t0) + ' ms | descarga ' + (Date.now() - t1) + ' ms | ' + (buf.length / 1048576).toFixed(1) + ' MB')
+  return { buf, ct: src.ct || '' }
+}
+
 let checking = false
 async function selfCheck() {
   if (checking) return
@@ -176,11 +242,8 @@ module.exports = async (req, res) => {
     const i = okId ? id : ''
     const src = await resolve(i, su, title, trace, false)
     if (p === '/api/probe') { send(res, 200, { ok: true, trace }); return true }
-    try {
-      await proxy(req, res, src)
-    } catch (e) {
+    try { await proxy(req, res, src) } catch (e) {
       if (res.headersSent) return true
-      console.log('⚠ el link guardado falló, busco otro →', errMsg(e))
       const src2 = await resolve(i, su, title, trace, true)
       await proxy(req, res, src2)
     }
@@ -189,3 +252,4 @@ module.exports = async (req, res) => {
   }
   return true
 }
+module.exports.audio = audio

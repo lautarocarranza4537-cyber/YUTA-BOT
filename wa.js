@@ -26,12 +26,13 @@ function throttle(sock) {
   let chain = Promise.resolve()
   sock.sendMessage = (jid, content = {}, opts) => {
     const job = chain.then(async () => {
-      if (content.react || content.delete) await sleep(300 + Math.random() * 400)
+      const media = content.audio || content.image || content.video || content.sticker
+      if (content.react || content.delete || media) await sleep(150 + Math.random() * 250)
       else {
         try {
-          await sock.sendPresenceUpdate(content.audio ? 'recording' : 'composing', jid)
-          const len = (content.text || content.caption || '').length
-          await sleep(Math.min(2500, 500 + len * 12) + Math.random() * 600)
+          await sock.sendPresenceUpdate('composing', jid)
+          const len = (content.text || '').length
+          await sleep(Math.min(1200, 250 + len * 5) + Math.random() * 300)
           await sock.sendPresenceUpdate('paused', jid)
         } catch {}
       }
@@ -76,6 +77,7 @@ async function start(phone, wantCode) {
     getMessage: async () => undefined
   })
   throttle(sock)
+  if (cmd.attach) cmd.attach(sock, phone)
 
   const s = sessions.get(phone) || { retries: 0 }
   s.sock = sock
@@ -174,6 +176,8 @@ async function http(req, res) {
     } else if (u.pathname === '/api/wa/status') {
       const s = sessions.get(clean(u.searchParams.get('phone')))
       send(200, { state: s ? s.state : 'none', used: sessions.size, max: MAX })
+    } else if (u.pathname === '/api/wa/commands') {
+      send(200, { commands: cmd.list ? cmd.list() : [] })
     } else send(404, { error: 'No existe' })
   } catch (e) {
     send(e.status || 500, { error: e.message })

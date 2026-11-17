@@ -4,40 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#04060c">
-<title>YUTA Play</title>
+<title>YUTA Play · Bot de WhatsApp</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="fx"></canvas>
-
-<header class="top">
-  <button id="mb" class="ib rip" aria-label="Menú">☰</button>
-  <div class="logo">YUTA<span>PLAY</span></div>
-  <button id="av" class="ava rip" aria-label="Perfil">Y</button>
-</header>
-
-<div id="ov" class="ov"></div>
-<aside id="dr" class="dr">
-  <div id="dbanner" class="dbanner">
-    <div id="davatar" class="davatar">Y</div>
-    <div><b>YUTA PLAY</b><small>Sin anuncios</small></div>
-  </div>
-  <nav id="menu">
-    <button class="rip on" data-v="home" style="--i:0"><b>⌂</b>Inicio</button>
-    <button class="rip" data-v="search" style="--i:1"><b>🔍</b>Buscar</button>
-    <button class="rip" data-v="music" style="--i:1"><b>♪</b>Música</button>
-    <button class="rip" data-v="video" style="--i:2"><b>▶</b>Videos</button>
-    <button class="rip" data-v="favs" style="--i:3"><b>♥</b>Favoritos</button>
-    <button class="rip" data-v="link" style="--i:4"><b>📱</b>Vinculación por WhatsApp</button>
-    <button class="rip" data-v="settings" style="--i:4"><b>⚙</b>Ajustes</button>
-  </nav>
-  <p class="dfoot">YUTA Play · música y videos sin anuncios</p>
-</aside>
-
+<header class="top"><div class="logo">YUTA<span>PLAY</span></div></header>
 <main>
-  <section id="v-home" class="view on">
-    <div id="hero" class="hero">
-      <div id="hero-img" class="hero-img"></div>
+  <section class="view on">
+    <div class="hero">
       <svg class="art" viewBox="0 0 400 230" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs>
           <radialGradient id="mn" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#cfe6ff"/><stop offset="1" stop-color="#7fc4ff" stop-opacity="0"/></radialGradient>
@@ -49,130 +24,48 @@
         <g class="aura" fill="none" stroke="#7fc4ff" stroke-linecap="round">
           <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="3" filter="url(#gl)"/>
           <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="1.2"/>
-          <path d="M-10 150 C70 90 150 190 240 120 S350 80 420 130" stroke-width="1" opacity=".6"/>
         </g>
         <g transform="rotate(-24 200 125)">
           <rect x="14" y="117" width="78" height="9" rx="3" fill="#0a1020" stroke="#7fc4ff" stroke-width=".8"/>
           <rect x="92" y="112" width="6" height="19" rx="2" fill="#7fc4ff"/>
           <rect x="98" y="119" width="220" height="5" rx="2" fill="url(#bl)"/>
           <polygon points="318,119 346,121.5 318,124" fill="#e8f4ff"/>
-          <rect class="shine" x="98" y="119" width="220" height="5" rx="2" fill="#fff" filter="url(#gl)"/>
         </g>
       </svg>
       <div class="kj">呪</div>
       <div class="hero-t">
-        <h2>YUTA</h2>
-        <p>Música y videos. Sin anuncios.</p>
-        <div class="hbtns">
-          <button id="hb-m" class="btn fill rip">♪ Escuchar</button>
-          <button id="hb-v" class="btn rip">▶ Ver</button>
-        </div>
+        <h2>YUTA BOT</h2>
+        <p>Bot de WhatsApp: música, grupos, anime y juegos.</p>
+        <div class="hbtns"><button id="go-link" class="btn fill rip">Vincular mi WhatsApp</button><button id="go-cmd" class="btn rip">Ver comandos</button></div>
       </div>
     </div>
-    <button id="tile-s" class="btn fill rip" style="width:100%;margin-bottom:12px">🔍 Busca tu música favorita con YUTA PLAY</button>
-    <div class="tiles">
-      <button id="tile-m" class="tile rip"><i>♪</i><b>Música</b><small>Tendencias y géneros</small></button>
-      <button id="tile-v" class="tile rip"><i>▶</i><b>Videos</b><small>Películas y más</small></button>
+
+    <div id="link" class="rv">
+      <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
+      <p class="note">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</p>
+      <form id="lf" class="s"><input id="lp" type="tel" inputmode="numeric" placeholder="5493513157041" autocomplete="off"><button class="btn fill rip">Obtener código</button></form>
+      <div id="lout"></div>
     </div>
-    <h3 class="sec">Ahora suena</h3>
-    <div id="home-list" class="list"></div>
-  </section>
 
-  <section id="v-search" class="view">
-    <h2 class="big">Busca tu música favorita con <span>YUTA PLAY</span></h2>
-    <p class="note">Escribe el nombre de cualquier canción o artista.</p>
-    <form id="sf" class="s"><input id="sq" placeholder="Ej: Montagem Apollo" autocomplete="off" enterkeyhint="search"><button class="btn fill rip">Buscar</button></form>
-    <div id="ssug" class="chips"></div>
-    <h3 id="sh" class="sec"></h3>
-    <div id="slist" class="list"></div>
-    <button id="smore" class="btn rip">Cargar más</button>
-  </section>
-
-  <section id="v-music" class="view">
-    <form id="mf" class="s"><input id="mq" placeholder="Buscar música..." autocomplete="off"><button class="btn fill rip">Buscar</button></form>
-    <div id="mchips" class="chips"></div>
-    <h3 id="mh" class="sec">Tendencias</h3>
-    <div id="mlist" class="list"></div>
-  </section>
-
-  <section id="v-video" class="view">
-    <div id="theater">
-      <video id="vp" controls playsinline></video>
-      <div class="tinfo">
-        <b id="vt"></b><small id="vby"></small>
-        <div class="tbtns">
-          <div id="vqc" class="chips"></div>
-          <button id="vfav" class="btn rip">♥</button>
-          <button id="vclose" class="btn dim rip">✕</button>
-        </div>
-      </div>
-    </div>
-    <form id="vf" class="s"><input id="vs" placeholder="Buscar videos y películas..." autocomplete="off"><button class="btn fill rip">Buscar</button></form>
-    <div id="vchips" class="chips"></div>
-    <p class="note">Las calidades (1080p, 720p...) dependen de lo que haya subido el autor.</p>
-    <h3 id="vh" class="sec">Populares</h3>
-    <div id="vlist" class="list"></div>
-  </section>
-
-  <section id="v-favs" class="view">
-    <p id="fe" class="msg">Aún no tienes favoritos. Toca ♥ en el reproductor o en un video.</p>
-    <div id="fm"><h3 class="sec">Música</h3><div id="fl-m" class="list"></div></div>
-    <div id="fv"><h3 class="sec">Videos</h3><div id="fl-v" class="list"></div></div>
-  </section>
-
-  <section id="v-link" class="view">
-    <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
-    <p class="note">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</p>
-    <form id="lf" class="s"><input id="lp" type="tel" inputmode="numeric" placeholder="5493513157041" autocomplete="off"><button class="btn fill rip">Obtener código</button></form>
-    <div id="lout"></div>
-    <div class="card">
+    <div class="card rv">
       <h3>Cómo vincular</h3>
       <p>1. Toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.play</b> y el nombre de una canción en cualquier chat.</p>
     </div>
-    <div class="card">
-      <h3>Importante</h3>
-      <p>Al vincular, este servidor queda como un dispositivo más de tu WhatsApp y puede leer los mensajes de esa cuenta, igual que WhatsApp Web. Vincula solo tu propio número, mejor uno secundario. Puedes quitarlo cuando quieras desde WhatsApp, en Dispositivos vinculados. WhatsApp no permite oficialmente los bots, así que la cuenta podría ser limitada.</p>
-    </div>
-  </section>
 
-  <section id="v-settings" class="view">
-    <div class="card">
-      <h3>Tu imagen</h3>
-      <p>Sube tu propia imagen de Yuta. Se guarda solo en este navegador.</p>
-      <button id="set-av" class="btn rip">Foto de perfil</button>
-      <button id="set-bn" class="btn rip">Banner</button>
-      <button id="set-reset" class="btn dim rip">Quitar imágenes</button>
+    <div id="cmds" class="rv">
+      <h3 class="sec">Comandos</h3>
+      <div id="cc" class="chips"></div>
+      <div id="cl" class="card"><p class="msg">Cargando…</p></div>
+      <p class="note">Prefijos: <b>.</b> y <b>,</b> — también responde a tu propia cuenta vinculada.</p>
     </div>
-    <div class="card">
-      <h3>Calidad de video por defecto</h3>
-      <p>Si el video no la tiene, se usa la más cercana.</p>
-      <div id="qset" class="chips"></div>
-    </div>
-    <div class="card">
-      <h3>Datos</h3>
-      <p>Música: Audius (artistas independientes). Videos: Internet Archive (dominio público).</p>
-      <button id="clrfav" class="btn dim rip">Borrar favoritos</button>
+
+    <div class="card rv">
+      <h3>Importante</h3>
+      <p>Al vincular, este servidor queda como un dispositivo más de tu WhatsApp y puede leer los mensajes de esa cuenta, igual que WhatsApp Web. Vincula solo tu propio número, mejor uno secundario. Puedes quitarlo cuando quieras desde WhatsApp, en Dispositivos vinculados. WhatsApp no permite oficialmente los bots, así que la cuenta podría ser limitada. Si el servidor se reinicia, hay que volver a vincular.</p>
     </div>
   </section>
 </main>
-
-<div id="player">
-  <div class="pl-top">
-    <img id="pi" alt="">
-    <div class="pinfo"><p id="pt"></p><small id="pa"></small></div>
-    <div class="pctl">
-      <button id="pfav" class="pb fav" aria-label="Favorito">♥</button>
-      <button id="pv" class="pb" aria-label="Anterior">⏮</button>
-      <button id="pp" class="pb main" aria-label="Reproducir">▶</button>
-      <button id="pn" class="pb" aria-label="Siguiente">⏭</button>
-    </div>
-  </div>
-  <div class="prog"><span id="ct">0:00</span><input id="pr" type="range" min="0" max="1000" value="0"><span id="dt">0:00</span></div>
-</div>
-
 <div id="toast"></div>
-<input type="file" accept="image/*" id="f-av" hidden>
-<input type="file" accept="image/*" id="f-bn" hidden>
 <script src="app.js"></script>
 </body>
 </html>
