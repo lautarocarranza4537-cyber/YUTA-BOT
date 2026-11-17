@@ -35,7 +35,7 @@
       <div class="kj">呪</div>
       <div class="hero-t">
         <h2>YUTA BOT</h2>
-        <p>Bot de WhatsApp: música, grupos, anime y juegos.</p>
+        <p>Bot de WhatsApp: música, videos, grupos, anime y juegos.</p>
         <div class="hbtns"><button id="go-link" class="btn fill rip">Vincular mi WhatsApp</button><button id="go-cmd" class="btn rip">Ver comandos</button></div>
       </div>
     </div>
@@ -43,13 +43,19 @@
     <div id="link" class="rv">
       <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
       <p class="note">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</p>
-      <form id="lf" class="s"><input id="lp" type="tel" inputmode="numeric" placeholder="5493513157041" autocomplete="off"><button class="btn fill rip">Obtener código</button></form>
+      <form id="lf" class="s col">
+        <input id="lp" type="tel" inputmode="numeric" placeholder="Tu número: 5493513157041" autocomplete="off">
+        <input id="ln" type="text" maxlength="24" placeholder="Nombre de tu bot (opcional). Ej: GOKU" autocomplete="off">
+        <label class="file rip"><span id="lfn">Elegir banner del menú (opcional)</span><input id="lb" type="file" accept="image/*" hidden></label>
+        <img id="lprev" class="prev" alt="Vista previa del banner" hidden>
+        <button class="btn fill rip">Obtener código</button>
+      </form>
       <div id="lout"></div>
     </div>
 
     <div class="card rv">
       <h3>Cómo vincular</h3>
-      <p>1. Toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.play</b> y el nombre de una canción en cualquier chat.</p>
+      <p>1. Elige el nombre y el banner de tu bot (opcional) y toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.menu</b> en cualquier chat.<br>5. En un grupo, el bot empieza apagado: escribe <b>.bot on</b> para que los demás puedan usarlo.</p>
     </div>
 
     <div id="cmds" class="rv">
@@ -61,7 +67,7 @@
 
     <div class="card rv">
       <h3>Importante</h3>
-      <p>Al vincular, este servidor queda como un dispositivo más de tu WhatsApp y puede leer los mensajes de esa cuenta, igual que WhatsApp Web. Vincula solo tu propio número, mejor uno secundario. Puedes quitarlo cuando quieras desde WhatsApp, en Dispositivos vinculados. WhatsApp no permite oficialmente los bots, así que la cuenta podría ser limitada. Si el servidor se reinicia, hay que volver a vincular.</p>
+      <p>Al vincular, este servidor queda como un dispositivo más de tu WhatsApp y puede leer los mensajes de esa cuenta, igual que WhatsApp Web. Vincula solo tu propio número, mejor uno secundario. Puedes quitarlo cuando quieras desde WhatsApp, en Dispositivos vinculados. WhatsApp no permite oficialmente los bots, así que la cuenta podría ser limitada. Si el servidor se reinicia, hay que volver a vincular. El nombre y el banner aparecen en los mensajes del bot y no cambian tu nombre de perfil.</p>
     </div>
   </section>
 </main>

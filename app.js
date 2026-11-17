@@ -39,6 +39,36 @@ function chips(el,arr,cur,fn){
 $('go-link').onclick=()=>$('link').scrollIntoView({behavior:'smooth',block:'start'});
 $('go-cmd').onclick=()=>$('cmds').scrollIntoView({behavior:'smooth',block:'start'});
 
+/* banner: se achica en el navegador antes de enviarse */
+let bannerData='';
+function shrink(file){
+  return new Promise(function(res,rej){
+    const fr=new FileReader();fr.onerror=rej;
+    fr.onload=function(){
+      const im=new Image();im.onerror=rej;
+      im.onload=function(){
+        const k=Math.min(1,640/Math.max(im.width,im.height));
+        const c=document.createElement('canvas');
+        c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        let q=0.82,d=c.toDataURL('image/jpeg',q);
+        while(d.length>380000&&q>0.3){q-=0.12;d=c.toDataURL('image/jpeg',q)}
+        if(d.length>380000)rej(new Error('big'));else res(d);
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+$('lb').onchange=function(){
+  const f=this.files[0];this.value='';
+  if(!f)return;
+  if(!/^image\//.test(f.type)){toast('Elige una imagen');return}
+  shrink(f).then(function(d){
+    bannerData=d;$('lprev').src=d;$('lprev').hidden=false;$('lfn').textContent='Cambiar banner';
+  }).catch(function(){toast('No pude leer esa imagen')});
+};
+
 /* vinculación */
 (function(){
   let timer=null,cur='';
@@ -48,7 +78,7 @@ $('go-cmd').onclick=()=>$('cmds').scrollIntoView({behavior:'smooth',block:'start
   async function poll(){
     try{
       const j=await (await fetch('/api/wa/status?phone='+cur)).json();
-      if(j.state==='open'){stop();show('<div class="wok">✅ ¡Vinculado! Ya puedes escribir <b>.play</b> y el nombre de una canción en cualquier chat de WhatsApp.</div>')}
+      if(j.state==='open'){stop();show('<div class="wok">✅ ¡Vinculado! Escribe <b>.menu</b> en cualquier chat de WhatsApp. En un grupo, escribe <b>.bot on</b> para que los demás puedan usarlo.</div>')}
       else if(j.state==='none'){stop();show('<p class="msg">El código venció. Pide uno nuevo.</p>')}
     }catch(e){}
   }
@@ -58,10 +88,10 @@ $('go-cmd').onclick=()=>$('cmds').scrollIntoView({behavior:'smooth',block:'start
     if(phone.length<8){toast('Escribe tu número completo con código de país');return}
     cur=phone;show('<div class="sk"></div>');
     try{
-      const r=await fetch('/api/wa/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone})});
+      const r=await fetch('/api/wa/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone,name:$('ln').value,banner:bannerData})});
       const j=await r.json().catch(function(){return {}});
       if(!r.ok)throw new Error(j.error||'No se pudo generar el código');
-      if(j.state==='open'){show('<div class="wok">✅ Este número ya está vinculado.</div>');return}
+      if(j.state==='open'){show('<div class="wok">✅ Este número ya está vinculado. Para cambiar el nombre o el banner usa <b>.botname</b> y <b>.setbanner</b> en WhatsApp.</div>');return}
       if(j.state==='connecting'){show('<p class="msg">Este número ya estaba vinculado y se está reconectando. Espera un momento.</p>');timer=setInterval(poll,3000);return}
       show('<p class="note">Tu código de vinculación:</p><div class="wcode">'+esc(j.code)+'</div><button type="button" id="lcopy" class="btn rip">Copiar código</button><p class="note" style="margin-top:10px">Escríbelo en WhatsApp. Vence en unos 3 minutos. Esperando vinculación…</p>');
       $('lcopy').onclick=function(){
@@ -87,14 +117,13 @@ function drawCmds(cat){
   try{
     const j=await (await fetch('/api/wa/commands')).json();
     ALL=j.commands||[];
-    const order=['General','Música','Grupo','Anime','Juegos','Herramientas','Owner'];
+    const order=['General','Música','Descargas','Grupo','Anime','Juegos','Herramientas','Owner'];
     const cats=order.filter(o=>ALL.some(c=>c.cat===o));
     chips($('cc'),[['Todos','']].concat(cats.map(c=>[c,c])),'',drawCmds);
     drawCmds('');
   }catch(e){$('cl').innerHTML='<p class="msg">No se pudo cargar la lista de comandos.</p>'}
 })();
 
-/* animación al aparecer */
 (function(){
   const els=document.querySelectorAll('.rv');
   if(!('IntersectionObserver' in window)){els.forEach(e=>e.classList.add('in'));return}

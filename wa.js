@@ -20,7 +20,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 const fail = (status, msg) => Object.assign(new Error(msg), { status })
 const wipe = phone => fs.rmSync(path.join(DIR, phone), { recursive: true, force: true })
 
-// Envío escalonado: cola, "escribiendo..." y pausas (más natural para WhatsApp)
 function throttle(sock) {
   const raw = sock.sendMessage.bind(sock)
   let chain = Promise.resolve()
@@ -54,7 +53,7 @@ function drop(phone, erase = true) {
     try { s.sock && s.sock.end(undefined) } catch {}
     sessions.delete(phone)
   }
-  if (erase) wipe(phone)
+  if (erase) { wipe(phone); cmd.forget(phone) }
 }
 
 function reconnect(phone, s, quick) {
@@ -77,7 +76,7 @@ async function start(phone, wantCode) {
     getMessage: async () => undefined
   })
   throttle(sock)
-  if (cmd.attach) cmd.attach(sock, phone)
+  cmd.attach(sock, phone)
 
   const s = sessions.get(phone) || { retries: 0 }
   s.sock = sock
@@ -132,9 +131,24 @@ function allow(ip, phone) {
   arr.push(now); byIp.set(ip, arr); byPhone.set(phone, now)
 }
 
-async function link(rawPhone, ip) {
+function cleanPrefs(b) {
+  const name = cmd.cleanName(b.name)
+  let banner = null
+  if (typeof b.banner === 'string' && b.banner) {
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(b.banner)
+    if (!m) throw fail(400, 'La imagen del banner no es válida (usa JPG o PNG).')
+    const buf = Buffer.from(m[1], 'base64')
+    if (buf.length > 300 * 1024) throw fail(413, 'La imagen del banner es muy pesada.')
+    if (buf[0] !== 0xff || buf[1] !== 0xd8) throw fail(400, 'La imagen del banner no es válida.')
+    banner = buf
+  }
+  return { name, banner }
+}
+
+async function link(rawPhone, ip, body) {
   const phone = clean(rawPhone)
   if (phone.length < 8 || phone.length > 15) throw fail(400, 'Escribe el número completo con código de país, sin + ni espacios.')
+  const prefs = cleanPrefs(body || {})
   const ex = sessions.get(phone)
   if (ex && ex.state === 'open') return { state: 'open' }
   if (ex && ex.sock && ex.sock.authState.creds.registered) return { state: ex.state }
@@ -142,9 +156,11 @@ async function link(rawPhone, ip) {
   if (!ex && sessions.size >= MAX) throw fail(409, 'Cupo lleno por ahora. Intenta más tarde.')
   if (ex) drop(phone, true)
   wipe(phone)
+  cmd.forget(phone)
   try {
     const code = await start(phone, true)
     if (!code) throw new Error('sin código')
+    cmd.setPrefs(phone, prefs)
     return { state: 'pairing', code: code.match(/.{1,4}/g).join('-') }
   } catch (e) {
     console.log('⚠ no pude generar el código:', e.message)
@@ -155,7 +171,7 @@ async function link(rawPhone, ip) {
 
 const readBody = req => new Promise((resolve, reject) => {
   let b = ''
-  req.on('data', d => { b += d; if (b.length > 2000) { reject(fail(413, 'Solicitud muy grande')); req.destroy() } })
+  req.on('data', d => { b += d; if (b.length > 450000) { reject(fail(413, 'Solicitud muy grande')); req.destroy() } })
   req.on('end', () => resolve(b))
   req.on('error', reject)
 })
@@ -170,14 +186,14 @@ async function http(req, res) {
   try {
     if (u.pathname === '/api/wa/link' && req.method === 'POST') {
       let body = {}
-      try { body = JSON.parse((await readBody(req)) || '{}') } catch { throw fail(400, 'Solicitud inválida') }
+      try { body = JSON.parse((await readBody(req)) || '{}') } catch (e) { throw e.status ? e : fail(400, 'Solicitud inválida') }
       const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim()
-      send(200, await link(body.phone, ip))
+      send(200, await link(body.phone, ip, body))
     } else if (u.pathname === '/api/wa/status') {
       const s = sessions.get(clean(u.searchParams.get('phone')))
       send(200, { state: s ? s.state : 'none', used: sessions.size, max: MAX })
     } else if (u.pathname === '/api/wa/commands') {
-      send(200, { commands: cmd.list ? cmd.list() : [] })
+      send(200, { commands: cmd.list() })
     } else send(404, { error: 'No existe' })
   } catch (e) {
     send(e.status || 500, { error: e.message })
@@ -185,7 +201,6 @@ async function http(req, res) {
   return true
 }
 
-// Al arrancar, retoma las sesiones que ya estaban vinculadas (si hay disco)
 function boot() {
   let dirs = []
   try { dirs = fs.readdirSync(DIR).filter(d => /^\d{8,15}$/.test(d)) } catch {}
