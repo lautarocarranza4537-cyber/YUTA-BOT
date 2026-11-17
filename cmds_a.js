@@ -2,10 +2,12 @@ const fs = require('fs')
 const play = require('./play')
 const fast = require('./fast')
 const social = require('./social')
+const fmt = require('./fmt')
+const yt = require('./yt')
+const thumb = require('./thumb')
 
 const FORMAT = (process.env.AUDIO_FORMAT || 'mp3').toLowerCase()
 const MAX_MIN = 12
-const YT = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|music\.youtube\.com\/watch\?v=)([\w-]{11})/i
 
 module.exports = H => {
   const { add, commands, ORDER, num, durSec, uptime, norm, botName, bannerFile, enqueue, pending, convert, toMp3, nekos, SITE } = H
@@ -59,20 +61,7 @@ module.exports = H => {
   })
 
   // ───── música ─────
-  async function findSong(q) {
-    const m = q.match(YT)
-    if (m) {
-      const id = m[1]
-      try {
-        const r = await fetch('https://www.youtube.com/oembed?url=' + encodeURIComponent('https://youtu.be/' + id) + '&format=json', { signal: AbortSignal.timeout(8000) })
-        const j = await r.json()
-        return { id, title: j.title, by: j.author_name, img: j.thumbnail_url }
-      } catch { return { id, title: '', by: '-', img: 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' } }
-    }
-    return fast.top(q)
-  }
-
-  add(['play', 'musica', 'p'], 'Música', 'Descarga una canción en audio', { usage: '<nombre o link>', heavy: true }, async c => {
+  add(['play', 'musica', 'p'], 'Música', 'Descarga una canción en audio (máx 30 MB)', { usage: '<nombre o link>', heavy: true }, async c => {
     const q = c.text
     if (!q) return c.reply('Uso: `' + c.prefix + 'play` _nombre de la canción o link de YouTube_\nEj: `' + c.prefix + 'play montagem apollo`')
     if (pending() >= 3) return c.reply('⏳ Hay muchas descargas ahora mismo. Intenta en un momento.')
@@ -81,13 +70,23 @@ module.exports = H => {
     try {
       await enqueue(async () => {
         const t0 = Date.now()
-        const item = await findSong(q)
+        const item = await fast.find(q, 'audio')
         if (!item) return c.reply('❌ No encontré esa canción. Prueba con otro nombre.')
         if (durSec(item.dur) > MAX_MIN * 60) return c.reply('❌ Esa canción es muy larga (máx ' + MAX_MIN + ' min).')
         const t1 = Date.now()
-        const cap = '╭─〔 🎧 *' + botName(c.phone) + '* 〕\n│ 🎵 *' + (item.title || 'Audio de YouTube') + '*\n│ 👤 ' + (item.by || '-') + (item.dur ? '\n│ ⏱️ ' + item.dur : '') + '\n╰──────────────\n⏳ _Descargando el audio..._'
+        const ytId = item.u ? null : item.id
+        const det = ytId ? yt.details(ytId).catch(() => null) : Promise.resolve(null)
+        const link = item.u || 'https://youtu.be/' + item.id
         const card = (async () => {
-          try { await c.sock.sendMessage(c.chat, { image: { url: item.img }, caption: cap }, { quoted: c.m }) } catch { await c.reply(cap) }
+          const d = await det
+          const cap = fmt.card({
+            icon: '🎧', title: (d && d.title) || item.title, by: (d && d.by) || item.by,
+            dur: (d && d.seconds) || item.dur, views: d && d.views, link, date: d && d.date,
+            note: '⏳ _Descargando el audio..._'
+          })
+          const img = await thumb.best(item, ytId).catch(() => null)
+          try { await c.sock.sendMessage(c.chat, img ? { image: img, caption: cap } : { text: cap }, { quoted: c.m }) } catch { await c.reply(cap) }
+          return d
         })()
         const a = await play.audio(item.u ? '' : item.id, item.u || '', item.title)
         const t2 = Date.now()
@@ -97,9 +96,9 @@ module.exports = H => {
           try { out = await toMp3(a.buf) } catch (e) { console.log('⚠ sin conversión a mp3:', e.message); mime = 'audio/mp4'; ext = 'm4a' }
         }
         const t3 = Date.now()
-        await card
-        const fname = ((item.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 80) || 'audio') + '.' + ext
-        await c.sock.sendMessage(c.chat, { audio: out, mimetype: mime, fileName: fname }, { quoted: c.m })
+        const d = await card
+        const name = (((d && d.title) || item.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 80)) || 'audio'
+        await c.sock.sendMessage(c.chat, { audio: out, mimetype: mime, fileName: name + '.' + ext }, { quoted: c.m })
         await c.sock.sendMessage(c.chat, { react: { text: '✅', key: c.m.key } }).catch(() => {})
         console.log('⏱ búsqueda ' + (t1 - t0) + ' ms | descarga ' + (t2 - t1) + ' ms | conversión ' + (t3 - t2) + ' ms | envío ' + (Date.now() - t3) + ' ms | total ' + (Date.now() - t0) + ' ms')
       })
@@ -109,7 +108,7 @@ module.exports = H => {
     }
   })
 
-  // ───── descargas de video: TikTok, Instagram, Facebook ─────
+  // ───── videos de TikTok, Instagram y Facebook ─────
   function dl(kind, names, label, example) {
     add(names, 'Descargas', 'Descarga un video de ' + label, { usage: '<link>', heavy: true }, async c => {
       const q = c.ctx && c.ctx.quotedMessage
@@ -128,7 +127,7 @@ module.exports = H => {
             try { buf = await convert(buf, 'bin', 'mp4', ['-c:v', 'libx264', '-preset', 'veryfast', '-c:a', 'aac', '-movflags', 'faststart'], 120000) }
             catch { throw new Error('El video no está en un formato compatible.') }
           }
-          const cap = '🎬 ' + (v.title ? v.title.slice(0, 150) : label) + (v.by ? '\n👤 ' + v.by : '')
+          const cap = fmt.card({ icon: '🎬', title: v.title || label, by: v.by, dur: v.dur, views: v.views, link: url, date: v.date })
           await c.sock.sendMessage(c.chat, { video: buf, mimetype: 'video/mp4', caption: cap }, { quoted: c.m })
           await c.sock.sendMessage(c.chat, { react: { text: '✅', key: c.m.key } }).catch(() => {})
           console.log('⏱ ' + kind + ' (' + v.via + ') ' + (Date.now() - t0) + ' ms | ' + (buf.length / 1048576).toFixed(1) + ' MB')

@@ -158,7 +158,7 @@ async function nekos(cat) {
 
 module.exports = {
   SITE, DEFAULT_NAME, ORDER, num, pick, rnd, durSec, uptime, norm, unwrap, getBody, getCtx,
-  convert, toMp3, toOpus, gifToMp4, toWebp, addExif, LANGS, googleTTS,
+  ff, tmp, rm, ffbin, convert, toMp3, toOpus, gifToMp4, toWebp, addExif, LANGS, googleTTS,
   dirOf, bannerFile, dbOf, saveDb, grp, botName, cleanName, setPrefs, forget,
   getMeta, isAdmin, botAdmin, commands, add, list, enqueue, pending, nekos
 }

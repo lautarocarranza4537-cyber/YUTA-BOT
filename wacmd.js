@@ -2,6 +2,7 @@ const H = require('./wacore')
 require('./cmds_a')(H)
 require('./cmds_b')(H)
 require('./cmds_c')(H)
+require('./cmds_d')(H)
 const { commands, num, dbOf, saveDb, grp, getMeta, isAdmin, botAdmin, getBody, getCtx } = H
 
 const PREFIXES = ['.', ',']

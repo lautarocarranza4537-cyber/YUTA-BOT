@@ -18,7 +18,7 @@ function findUrl(text) {
 }
 
 async function tikwm(url) {
-  const r = await fetch('https://www.tikwm.com/api/?hd=1&url=' + encodeURIComponent(url), { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
+const r = await fetch('https://www.tikwm.com/api/?hd=1&url=' + encodeURIComponent(url), { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
   const j = await r.json().catch(() => ({}))
   if (!j || j.code !== 0 || !j.data) throw new Error((j && j.msg) || 'TikTok no respondió')
   const d = j.data
@@ -26,11 +26,14 @@ async function tikwm(url) {
   const abs = u => (u && u.startsWith('/') ? 'https://www.tikwm.com' + u : u)
   const link = abs(d.hdplay || d.play)
   if (!link) throw new Error('No encontré el video')
-  return { url: link, title: d.title || '', author: (d.author && (d.author.nickname || d.author.unique_id)) || '' }
+  return {
+    url: link, title: d.title || '', by: (d.author && (d.author.nickname || d.author.unique_id)) || '',
+    dur: d.duration, views: d.play_count, date: d.create_time
+  }
 }
 
-async function fetchBuf(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(120000) })
+async function fetchBuf(url, headers) {
+  const r = await fetch(url, { headers: { 'User-Agent': UA, ...(headers || {}) }, redirect: 'follow', signal: AbortSignal.timeout(120000) })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   if ((+r.headers.get('content-length') || 0) > CAP) throw new Error('El video es muy pesado (máx 40 MB).')
   const chunks = []
@@ -41,6 +44,24 @@ async function fetchBuf(url) {
     chunks.push(c)
   }
   return Buffer.concat(chunks)
+}
+
+// Datos del video (y link directo) sin descargarlo todavía
+function ytdlpInfo(url) {
+  return new Promise((resolve, reject) => {
+    if (S.err) return reject(new Error(S.err))
+    const p = spawn(S.bin, ['--no-playlist', '--no-warnings', '--dump-json', '-f', 'b[ext=mp4]/b', ...S.js, ...S.cookies, '--', url])
+    let out = '', err = ''
+    const t = setTimeout(() => { try { p.kill('SIGKILL') } catch {} ; reject(new Error('Tardó demasiado en responder.')) }, 60000)
+    p.stdout.on('data', d => { out += d; if (out.length > 4e6) { try { p.kill('SIGKILL') } catch {} } })
+    p.stderr.on('data', d => (err = (err + d).slice(-1500)))
+    p.on('error', e => { clearTimeout(t); reject(e) })
+    p.on('close', code => {
+      clearTimeout(t)
+      try { return resolve(JSON.parse(out.trim().split('\n')[0])) } catch {}
+      reject(new Error(err.trim().split('\n').pop() || 'yt-dlp falló (' + code + ')'))
+    })
+  })
 }
 
 function ytdlpBuf(url) {
@@ -80,18 +101,32 @@ function friendly(kind, e) {
   return m.slice(0, 160)
 }
 
+// Devuelve el video con sus datos: título, canal, duración, vistas y fecha
 async function video(kind, url) {
   await ready
   if (kind === 'tt') {
     try {
       const t = await tikwm(url)
-      return { buf: await fetchBuf(t.url), title: t.title, by: t.author, via: 'tikwm' }
+      return { buf: await fetchBuf(t.url), title: t.title, by: t.by, dur: t.dur, views: t.views, date: t.date, via: 'tikwm' }
     } catch (e) {
       console.log('⚠ tikwm →', errMsg(e))
       if (/fotos/.test(errMsg(e))) throw e
     }
   }
-  return { buf: await ytdlpBuf(url), title: '', by: '', via: 'yt-dlp' }
+  const info = await ytdlpInfo(url)
+  const meta = {
+    title: String(info.title || info.description || '').split('\n')[0].slice(0, 120),
+    by: info.uploader || info.channel || info.uploader_id || '',
+    dur: info.duration, views: info.view_count, date: info.timestamp || info.upload_date
+  }
+  let buf = null, via = 'yt-dlp'
+  const direct = info.url && !/\.m3u8/.test(info.url) && (!info.protocol || /^https?$/.test(info.protocol))
+  if (direct) {
+    try { buf = await fetchBuf(info.url, info.http_headers); via = 'yt-dlp (directo)' }
+    catch (e) { console.log('⚠ link directo falló →', errMsg(e)); if (/pesado/.test(errMsg(e))) throw e }
+  }
+  if (!buf) buf = await ytdlpBuf(url)
+  return { ...meta, buf, via }
 }
 
 module.exports = { video, findUrl, hostOk, friendly }

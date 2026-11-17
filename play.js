@@ -7,7 +7,7 @@ const { S, ready, errMsg, host, fetchJson, UA } = C
 const YT_FMT = 'bestaudio[ext=m4a]/140/bestaudio'
 const SC_FMT = 'http_mp3/bestaudio[protocol^=http]/bestaudio'
 const TTL = 20 * 60 * 1000
-const CAP = 25 * 1024 * 1024
+const CAP = 30 * 1024 * 1024
 const RELAY = (process.env.RELAY_URL || '').replace(/\/+$/, '')
 const cache = new Map()
 const keyOf = (id, su) => (id ? 'y:' + id : 's:' + su)
@@ -172,14 +172,14 @@ async function downloadSingle(src) {
   let n = 0
   for await (const c of r.body) {
     n += c.length
-    if (n > CAP) throw new Error('El archivo es muy pesado')
+    if (n > CAP) throw new Error('El audio supera el límite de 30 MB')
     chunks.push(c)
   }
   return Buffer.concat(chunks)
 }
 async function download(src) {
   const total = src.total
-  if (total > CAP) throw new Error('El archivo es muy pesado')
+  if (total > CAP) throw new Error('El audio supera el límite de 30 MB')
   if (total > 400 * 1024) {
     const N = total > 6 * 1024 * 1024 ? 6 : 4
     const size = Math.ceil(total / N)
