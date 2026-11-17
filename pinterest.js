@@ -1,7 +1,14 @@
 const social = require('./social')
 const { errMsg } = require('./core')
+const { toSpanish } = require('./translate')
+
 const DESK = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 const CAP = 40 * 1024 * 1024
+
+const unesc = s => s.replace(/\\u002F/g, '/').replace(/\\u0026/g, '&').replace(/\\\//g, '/')
+const cp = n => { try { return String.fromCodePoint(n) } catch { return '' } }
+const decode = s => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&#(\d+);/g, (_, n) => cp(+n)).replace(/&#x([0-9a-f]+);/gi, (_, h) => cp(parseInt(h, 16)))
 
 function hostOk(u) {
   try {
@@ -11,7 +18,24 @@ function hostOk(u) {
     return h === 'pin.it' || /(^|\.)pinterest\.[a-z.]+$/.test(h)
   } catch { return false }
 }
-const unesc = s => s.replace(/\\u002F/g, '/').replace(/\\\//g, '/')
+
+// Identifica un pin por su ruta, para no repetir imágenes
+const keyOf = u => { const m = /i\.pinimg\.com\/[^/]+\/(.+)\.(?:jpg|jpeg|png|webp|gif)/i.exec(u); return m ? m[1] : u }
+
+// Varias versiones de la misma imagen (por si una no existe)
+function variants(u) {
+  const m = /^https:\/\/i\.pinimg\.com\/[^/]+\/(.+)\.(jpg|jpeg|png|webp)$/i.exec(u)
+  if (!m) return [u]
+  const p = m[1], e = m[2].toLowerCase()
+  return [...new Set([
+    'https://i.pinimg.com/736x/' + p + '.' + e,
+    'https://i.pinimg.com/736x/' + p + '.jpg',
+    'https://i.pinimg.com/564x/' + p + '.jpg',
+    'https://i.pinimg.com/originals/' + p + '.' + e,
+    'https://i.pinimg.com/474x/' + p + '.jpg',
+    u
+  ])]
+}
 
 async function viaApi(q) {
   const src = '/search/pins/?q=' + encodeURIComponent(q)
@@ -28,8 +52,19 @@ async function viaApi(q) {
   for (const x of res) {
     if (!x || !x.images || x.is_promoted) continue
     const im = x.images['736x'] || x.images.orig || x.images['474x']
-    if (im && im.url && !out.includes(im.url)) out.push(im.url)
+    if (im && im.url) out.push(im.url)
   }
+  return out
+}
+
+// Respaldo: Bing Imágenes, solo las que están alojadas en Pinterest
+async function viaBing(q) {
+  const u = 'https://www.bing.com/images/async?q=' + encodeURIComponent(q + ' site:pinterest.com') + '&first=0&count=60&adlt=moderate&mmasync=1&setlang=es'
+  const r = await fetch(u, { headers: { 'User-Agent': DESK, 'Accept-Language': 'es-419,es;q=0.9' }, signal: AbortSignal.timeout(15000) })
+  if (!r.ok) throw new Error('Bing respondió ' + r.status)
+  const html = (await r.text()).replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\\u0026/g, '&').replace(/\\\//g, '/')
+  const out = []
+  for (const m of html.matchAll(/"murl":"(https?:[^"]+?)"/g)) if (/^https:\/\/i\.pinimg\.com\//i.test(m[1])) out.push(m[1])
   return out
 }
 
@@ -37,39 +72,55 @@ async function viaHtml(q) {
   const r = await fetch('https://www.pinterest.com/search/pins/?q=' + encodeURIComponent(q) + '&rs=typed', { headers: { 'User-Agent': DESK, 'Accept-Language': 'es-419,es;q=0.9' }, signal: AbortSignal.timeout(15000) })
   if (!r.ok) throw new Error('Pinterest respondió ' + r.status)
   const html = unesc(await r.text())
-  const re = /https:\/\/i\.pinimg\.com\/(?:236x|474x|564x|736x|originals)\/([0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]+)\.(?:jpg|png|webp)/gi
-  const seen = new Set(), out = []
-  for (const m of html.matchAll(re)) if (!seen.has(m[1])) { seen.add(m[1]); out.push('https://i.pinimg.com/736x/' + m[1] + '.jpg') }
-  return out
+  return html.match(/https:\/\/i\.pinimg\.com\/(?:236x|474x|564x|736x|originals)\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]+\.(?:jpg|png|webp)/gi) || []
 }
 
 async function search(q, k) {
-  let urls = []
-  try { urls = await viaApi(q) } catch (e) { console.log('⚠ pinterest api →', errMsg(e)) }
-  if (urls.length < 3) {
-    try { urls = [...new Set([...urls, ...(await viaHtml(q))])] } catch (e) { console.log('⚠ pinterest html →', errMsg(e)) }
+  const seen = new Set(), out = []
+  const take = (arr, label) => {
+    let n = 0
+    for (const u of arr) { const key = keyOf(u); if (!seen.has(key)) { seen.add(key); out.push(u); n++ } }
+    console.log('📌 ' + label + ': ' + n + ' resultados')
   }
-  if (!urls.length) throw new Error('No encontré imágenes de eso en Pinterest (puede estar bloqueando al servidor).')
-  return urls.slice(0, k)
+  for (const [label, fn] of [['api', viaApi], ['bing', viaBing], ['html', viaHtml]]) {
+    if (out.length >= k) break
+    try { take(await fn(q), label) } catch (e) { console.log('⚠ pinterest ' + label + ' → ' + errMsg(e)) }
+  }
+  if (!out.length) throw new Error('No encontré imágenes de eso en Pinterest. Prueba con otro nombre.')
+  return out.slice(0, k)
 }
 
+const isImage = b => b.length > 3 && ((b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50) || (b.slice(0, 4).toString() === 'RIFF' && b.slice(8, 12).toString() === 'WEBP') || b.slice(0, 4).toString() === 'GIF8')
+
 async function getImg(u) {
-  const r = await fetch(u, { headers: { 'User-Agent': DESK, Referer: 'https://www.pinterest.com/' }, signal: AbortSignal.timeout(15000) })
-  if (!r.ok) throw new Error('HTTP ' + r.status)
-  if (!/image/i.test(r.headers.get('content-type') || '')) throw new Error('no es imagen')
-  const b = Buffer.from(await r.arrayBuffer())
-  if (b.length > 8 * 1048576) throw new Error('muy pesada')
-  return b
+  let last = new Error('sin respuesta')
+  for (const v of variants(u)) {
+    try {
+      const r = await fetch(v, { headers: { 'User-Agent': DESK, Referer: 'https://www.pinterest.com/', Accept: 'image/avif,image/webp,image/*,*/*;q=0.8' }, signal: AbortSignal.timeout(15000) })
+      if (!r.ok) throw new Error('HTTP ' + r.status)
+      const b = Buffer.from(await r.arrayBuffer())
+      if (b.length < 2000) throw new Error('imagen muy chica')
+      if (b.length > 8 * 1048576) throw new Error('muy pesada')
+      if (!/image/i.test(r.headers.get('content-type') || '') && !isImage(b)) throw new Error('no es una imagen')
+      return b
+    } catch (e) { last = e }
+  }
+  throw last
 }
 
 // Hasta n imágenes (buffers) de lo que se pidió
 async function images(q, n = 10) {
-  const urls = await search(q, n + 6)
+  const urls = await search(q, n + 8)
   const out = []
+  let fails = 0, firstErr = ''
   for (let i = 0; i < urls.length && out.length < n; i += 5) {
     const res = await Promise.allSettled(urls.slice(i, i + 5).map(getImg))
-    for (const r of res) if (r.status === 'fulfilled' && out.length < n) out.push(r.value)
+    for (const r of res) {
+      if (r.status === 'fulfilled') { if (out.length < n) out.push(r.value) }
+      else { fails++; if (!firstErr) firstErr = errMsg(r.reason) }
+    }
   }
+  console.log('📌 pin "' + q + '": ' + urls.length + ' links, ' + out.length + ' descargadas, ' + fails + ' fallaron' + (firstErr ? ' (' + firstErr + ')' : ''))
   return out
 }
 
@@ -83,7 +134,7 @@ async function getVideo(u) {
   return Buffer.concat(chunks)
 }
 
-// Pin por link: devuelve { type: 'video'|'image', buf, title }
+// Pin por link: { type: 'video'|'image', buf, title } con el título en español
 async function fromLink(url) {
   const r = await fetch(url, { headers: { 'User-Agent': DESK, 'Accept-Language': 'es-419,es;q=0.9', Accept: 'text/html' }, redirect: 'follow', signal: AbortSignal.timeout(15000) })
   if (!hostOk(r.url)) throw new Error('Ese link no es de Pinterest.')
@@ -92,25 +143,25 @@ async function fromLink(url) {
   const meta = prop => {
     const m = html.match(new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]*content=["\']([^"\']+)["\']', 'i')) ||
       html.match(new RegExp('<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']' + prop + '["\']', 'i'))
-    return m ? m[1].replace(/&amp;/g, '&') : ''
+    return m ? decode(m[1]) : ''
   }
-  const title = meta('og:title').slice(0, 120)
+  const rawTitle = meta('og:title').replace(/\s*[-|·]\s*Pinterest\s*$/i, '').trim()
+  const titleP = toSpanish(rawTitle).then(t => t.slice(0, 120))
 
   const vids = [...new Set(html.match(/https:\/\/v\d*\.pinimg\.com\/videos\/[^"'\\\s<>]+?\.mp4/g) || [])]
   if (vids.length) {
     const pref = ['720p', '1080p', '480p', '360p']
     const u = pref.map(p => vids.find(v => v.includes(p))).find(Boolean) || vids[0]
-    try { return { type: 'video', buf: await getVideo(u), title } } catch (e) { console.log('⚠ pin mp4 →', errMsg(e)); if (/pesado/.test(errMsg(e))) throw e }
+    try { return { type: 'video', buf: await getVideo(u), title: await titleP } } catch (e) { console.log('⚠ pin mp4 →', errMsg(e)); if (/pesado/.test(errMsg(e))) throw e }
   }
-  const looksVideo = /"video_list"|V_HLSV3|\.m3u8|"is_video":\s*true/.test(html)
-  if (looksVideo) {
-    try { const v = await social.video('pin', url); return { type: 'video', buf: v.buf, title: title || v.title } } catch (e) { console.log('⚠ pin yt-dlp →', errMsg(e)) }
+  if (/"video_list"|V_HLSV3|\.m3u8|"is_video":\s*true/.test(html)) {
+    try { const v = await social.video('pin', url); return { type: 'video', buf: v.buf, title: await titleP } } catch (e) { console.log('⚠ pin yt-dlp →', errMsg(e)) }
   }
   const og = meta('og:image')
   if (!og) throw new Error('No encontré ninguna imagen ni video en ese pin.')
   const orig = og.replace(/\/(?:\d+x|\d+x\d+_RS|originals)\//, '/originals/')
-  try { return { type: 'image', buf: await getImg(orig), title } } catch {}
-  return { type: 'image', buf: await getImg(og), title }
+  try { return { type: 'image', buf: await getImg(orig), title: await titleP } } catch {}
+  return { type: 'image', buf: await getImg(og), title: await titleP }
 }
 
-module.exports = { hostOk, images, fromLink }
+module.exports = { hostOk, images, fromLink, _t: { variants, keyOf } }

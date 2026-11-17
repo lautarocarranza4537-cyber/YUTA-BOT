@@ -156,7 +156,12 @@ async function nekos(cat) {
   return (await r.json()).results[0].url
 }
 
+let linker = null
+const setLinker = f => { linker = f }
+const getLinker = () => linker
+
 module.exports = {
+  setLinker, getLinker,
   SITE, DEFAULT_NAME, ORDER, num, pick, rnd, durSec, uptime, norm, unwrap, getBody, getCtx,
   ff, tmp, rm, ffbin, convert, toMp3, toOpus, gifToMp4, toWebp, addExif, LANGS, googleTTS,
   dirOf, bannerFile, dbOf, saveDb, grp, botName, cleanName, setPrefs, forget,

@@ -215,4 +215,6 @@ function boot() {
 }
 setTimeout(boot, 2500)
 
+cmd.setLinker((phone, ip) => link(phone, ip, {}))
+
 module.exports = { http, boot }

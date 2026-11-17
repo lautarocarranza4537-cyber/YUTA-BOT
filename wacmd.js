@@ -3,6 +3,7 @@ require('./cmds_a')(H)
 require('./cmds_b')(H)
 require('./cmds_c')(H)
 require('./cmds_d')(H)
+require('./cmds_e')(H)
 const { commands, num, dbOf, saveDb, grp, getMeta, isAdmin, botAdmin, getBody, getCtx } = H
 
 const PREFIXES = ['.', ',']
@@ -83,4 +84,4 @@ function attach(sock, phone) {
   })
 }
 
-module.exports = { handle, attach, list: H.list, setPrefs: H.setPrefs, forget: H.forget, cleanName: H.cleanName }
+module.exports = { handle, attach, setLinker: H.setLinker, list: H.list, setPrefs: H.setPrefs, forget: H.forget, cleanName: H.cleanName }
