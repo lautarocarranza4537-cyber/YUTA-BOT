@@ -5,7 +5,7 @@ const { execFile, spawnSync } = require('child_process')
 
 const SITE = process.env.PUBLIC_URL || 'https://yuta-bot-x9pg.onrender.com'
 const DEFAULT_NAME = 'YUTA PLAY'
-const ORDER = ['General', 'Música', 'Descargas', 'Grupo', 'Anime', 'Juegos', 'Herramientas', 'Owner']
+const ORDER = ['General', 'Música', 'Descargas', 'Convertir', 'Buscar', 'IA', 'Economía', 'Grupo', 'Anime', 'Juegos', 'Herramientas', 'Owner']
 const started = Date.now()
 
 const num = j => String(j || '').split('@')[0].split(':')[0]

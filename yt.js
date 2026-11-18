@@ -2,6 +2,7 @@ const fs = require('fs')
 const { spawn } = require('child_process')
 const C = require('./core')
 const H = require('./wacore')
+const sh = require('./shield')
 const { S, errMsg, UA } = C
 
 const IT = [
@@ -52,7 +53,6 @@ async function nextInfo(id) {
   return out
 }
 
-// Canal, duración, vistas y fecha de un video de YouTube
 async function details(id) {
   const [p, n] = await Promise.allSettled([
     (async () => {
@@ -76,8 +76,10 @@ async function details(id) {
 }
 
 // ───── video con audio (play2) ─────
-async function plan(id, maxH, cap) {
-  let fallback = null, last = null
+// Junta las opciones de todos los clientes de YouTube, de mejor a peor
+async function plans(id, maxH, cap) {
+  const mux = [], prog = []
+  let last = null
   for (const c of IT) {
     try {
       const j = await player(id, c)
@@ -87,34 +89,55 @@ async function plan(id, maxH, cap) {
       const ad = sd.adaptiveFormats || []
       const audio = ad.filter(f => /^audio\/mp4/.test(f.mimeType || '') && f.url)
       const a = audio.find(f => f.itag === 140) || audio.sort((x, y) => (y.bitrate || 0) - (x.bitrate || 0))[0]
-      const vids = ad.filter(f => /^video\/mp4/.test(f.mimeType || '') && /avc1/.test(f.mimeType) && f.url && f.height && f.height <= maxH)
-        .sort((x, y) => y.height - x.height || (y.bitrate || 0) - (x.bitrate || 0))
-      if (a) for (const v of vids) {
-        const size = (+v.contentLength || 0) + (+a.contentLength || 0)
-        if (!size || size <= cap) return { kind: 'mux', v, a, ua: c.ua, height: v.height }
+      if (a) {
+        const vids = ad.filter(f => /^video\/mp4/.test(f.mimeType || '') && /avc1/.test(f.mimeType) && f.url && f.height && f.height <= maxH)
+          .sort((x, y) => y.height - x.height || (y.bitrate || 0) - (x.bitrate || 0))
+        for (const x of vids) {
+          const size = (+x.contentLength || 0) + (+a.contentLength || 0)
+          if (!size || size <= cap) { mux.push({ kind: 'mux', client: c.name, v: x, a, ua: c.ua, height: x.height }); break }
+        }
       }
-      const prog = (sd.formats || []).filter(f => /^video\/mp4/.test(f.mimeType || '') && f.url && f.height && f.height <= maxH).sort((x, y) => y.height - x.height)[0]
-      if (prog && !fallback) fallback = { kind: 'prog', v: prog, ua: c.ua, height: prog.height }
+      const p = (sd.formats || []).filter(f => /^video\/mp4/.test(f.mimeType || '') && f.url && f.height && f.height <= maxH).sort((x, y) => y.height - x.height)[0]
+      if (p) prog.push({ kind: 'prog', client: c.name, v: p, ua: c.ua, height: p.height })
     } catch (e) { last = e }
   }
-  if (fallback) return fallback
-  throw last || new Error('sin formatos de video')
+  const all = [...mux.sort((x, y) => y.height - x.height), ...prog.sort((x, y) => y.height - x.height)]
+  if (!all.length) throw last || new Error('sin formatos de video')
+  return all
 }
 
 async function getTotal(url, ua) {
-const r = await fetch(url, { headers: { 'User-Agent': ua, Range: 'bytes=0-1' }, redirect: 'follow', signal: AbortSignal.timeout(10000) })
+  const r = await fetch(url, { headers: { 'User-Agent': ua, Range: 'bytes=0-1' }, redirect: 'follow', signal: AbortSignal.timeout(10000) })
   const m = /\/(\d+)$/.exec(r.headers.get('content-range') || '')
   try { if (r.body) await r.body.cancel() } catch {}
   if (r.status !== 206 && r.status !== 200) throw new Error('HTTP ' + r.status)
   return m ? +m[1] : (+r.headers.get('content-length') || 0)
 }
+
+// Pide un tramo: primero con el encabezado Range y, si falla, con el parámetro range de la URL
 async function fetchRange(url, ua, a, b) {
-  const r = await fetch(url, { headers: { 'User-Agent': ua, Range: 'bytes=' + a + '-' + b }, redirect: 'follow', signal: AbortSignal.timeout(90000) })
-  if (r.status !== 206 && !(r.status === 200 && a === 0)) throw new Error('rango ' + r.status)
-  return Buffer.from(await r.arrayBuffer())
+  const want = b - a + 1
+  const tries = [
+    () => fetch(url, { headers: { 'User-Agent': ua, Range: 'bytes=' + a + '-' + b }, redirect: 'follow', signal: AbortSignal.timeout(90000) }),
+    () => fetch(url + (url.includes('?') ? '&' : '?') + 'range=' + a + '-' + b, { headers: { 'User-Agent': ua }, redirect: 'follow', signal: AbortSignal.timeout(90000) })
+  ]
+  let last = new Error('sin respuesta')
+  for (const t of tries) {
+    try {
+      const r = await t()
+      if (r.status !== 206 && r.status !== 200) throw new Error('HTTP ' + r.status)
+      const len = +r.headers.get('content-length') || 0
+      if (len && len > want * 1.5) { try { await r.body.cancel() } catch {} throw new Error('el servidor ignoró el rango') }
+      const buf = Buffer.from(await r.arrayBuffer())
+      if (buf.length !== want) throw new Error('rango incompleto')
+      return buf
+    } catch (e) { last = e }
+  }
+  throw last
 }
+
 async function dl(url, ua, total, cap) {
-  if (!total) total = await getTotal(url, ua)
+ if (!total) total = await getTotal(url, ua)
   if (!total) throw new Error('tamaño desconocido')
   if (total > cap) throw new Error('El video es muy pesado')
   const n = total > 12 * 1048576 ? 6 : total > 3 * 1048576 ? 4 : 1
@@ -124,6 +147,7 @@ async function dl(url, ua, total, cap) {
   if (buf.length !== total) throw new Error('descarga incompleta')
   return buf
 }
+
 async function mux(vbuf, abuf) {
   const vi = H.tmp('mp4'), ai = H.tmp('m4a'), out = H.tmp('mp4')
   fs.writeFileSync(vi, vbuf)
@@ -132,6 +156,41 @@ async function mux(vbuf, abuf) {
     await H.ff(['-i', vi, '-i', ai, '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-movflags', '+faststart', out], 120000)
     return fs.readFileSync(out)
   } finally { H.rm(vi, ai, out) }
+}
+
+async function getBuf(url, cap) {
+  const r = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(90000) })
+  if (!r.ok || !r.body) throw new Error('HTTP ' + r.status)
+  if (!/video|octet-stream/i.test(r.headers.get('content-type') || '')) throw new Error('no es video')
+  if ((+r.headers.get('content-length') || 0) > cap) throw new Error('El video es muy pesado')
+  const chunks = []
+  let n = 0
+  for await (const c of r.body) { n += c.length; if (n > cap) throw new Error('El video es muy pesado'); chunks.push(c) }
+  return Buffer.concat(chunks)
+}
+
+// Respaldo: Piped e Invidious (calidad media, con audio)
+async function viaProxies(id, maxH, cap) {
+  const deadline = Date.now() + 70000
+  let last = null
+  for (const b of sh.pip()) {
+    if (Date.now() > deadline) break
+    try {
+      const j = await C.fetchJson(`${b}/streams/${id}`, 7000)
+      const v = (j.videoStreams || []).filter(s => !s.videoOnly && /mp4/.test(s.mimeType || '') && s.url)
+        .sort((x, y) => (y.height || 0) - (x.height || 0)).find(s => !s.height || s.height <= maxH)
+      if (!v) throw new Error('sin formato')
+      return { buf: await getBuf(v.url, cap), height: v.height || 360, via: 'piped' }
+    } catch (e) { last = e }
+  }
+  for (const b of sh.inv()) {
+    for (const itag of [22, 18]) {
+      if (Date.now() > deadline) break
+      try { return { buf: await getBuf(`${b}/latest_version?id=${id}&itag=${itag}&local=true`, cap), height: itag === 22 ? 720 : 360, via: 'invidious' } }
+      catch (e) { last = e }
+    }
+  }
+  throw last || new Error('sin respuesta')
 }
 
 function viaYtdlp(id, maxH, cap) {
@@ -160,14 +219,29 @@ function viaYtdlp(id, maxH, cap) {
   })
 }
 
+function friendly(errors) {
+  const all = errors.join(' | ')
+  if (/sign in|not a bot|confirm you|HTTP 403|HTTP 429|bot/i.test(all)) {
+    return 'YouTube está bloqueando la descarga de videos desde este servidor ahora mismo. Prueba más tarde, o usa play para bajar solo el audio.'
+  }
+  return ('No pude descargar el video. ' + (errors[0] || '')).slice(0, 200)
+}
+
 async function video(id, maxH = 720, cap = 50 * 1048576) {
+  const errors = []
   try {
-    const p = await plan(id, maxH, cap)
-    if (p.kind === 'prog') return { buf: await dl(p.v.url, p.ua, +p.v.contentLength || 0, cap), height: p.height, via: 'youtube' }
-    const [vb, ab] = await Promise.all([dl(p.v.url, p.ua, +p.v.contentLength || 0, cap), dl(p.a.url, p.ua, +p.a.contentLength || 0, cap)])
-    return { buf: await mux(vb, ab), height: p.height, via: 'youtube' }
-  } catch (e) { console.log('⚠ play2 directo falló:', errMsg(e), '→ yt-dlp') }
-  return viaYtdlp(id, maxH, cap)
+    for (const p of await plans(id, maxH, cap)) {
+      try {
+        if (p.kind === 'prog') return { buf: await dl(p.v.url, p.ua, +p.v.contentLength || 0, cap), height: p.height, via: 'youtube-' + p.client }
+        const [vb, ab] = await Promise.all([dl(p.v.url, p.ua, +p.v.contentLength || 0, cap), dl(p.a.url, p.ua, +p.a.contentLength || 0, cap)])
+        return { buf: await mux(vb, ab), height: p.height, via: 'youtube-' + p.client }
+      } catch (e) { errors.push(p.client + ': ' + errMsg(e)) }
+    }
+  } catch (e) { errors.push('clientes: ' + errMsg(e)) }
+  try { return await viaProxies(id, maxH, cap) } catch (e) { errors.push('proxies: ' + errMsg(e)) }
+  try { return await viaYtdlp(id, maxH, cap) } catch (e) { errors.push('yt-dlp: ' + errMsg(e)) }
+  console.log('⚠ play2 falló →', errors.join(' | '))
+  throw new Error(friendly(errors))
 }
 
 module.exports = { details, video }

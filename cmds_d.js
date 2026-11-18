@@ -73,7 +73,7 @@ module.exports = H => {
           if (!imgs.length) return c.reply('❌ No pude descargar imágenes de eso. Prueba con otra búsqueda.')
           for (let i = 0; i < imgs.length; i++) {
             const msg = { image: imgs[i] }
-            if (i === 0) msg.caption = '📌 *Pinterest* · ' + q.slice(0, 60) + '\n_' + imgs.length + ' imágenes_'
+            if (i === 0) msg.caption = '📌 *Pinterest* · ' + q.slice(0, 60) + '\n_' + imgs.length + (imgs.length === 1 ? ' imagen' : ' imágenes') + '_'
             await c.sock.sendMessage(c.chat, msg, i === 0 ? { quoted: c.m } : undefined)
             await sleep(400)
           }

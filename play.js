@@ -31,7 +31,7 @@ async function innertube(id, c) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'User-Agent': c.ua, 'X-YouTube-Client-Name': String(c.id), 'X-YouTube-Client-Version': c.ctx.clientVersion, Origin: 'https://www.youtube.com' },
     body: JSON.stringify({ context: { client: c.ctx }, videoId: id, contentCheckOk: true, racyCheckOk: true }),
-    signal: AbortSignal.timeout(10000)
+    signal: AbortSignal.timeout(5000)
   })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   const j = await r.json()
@@ -44,7 +44,7 @@ async function innertube(id, c) {
   return { url: pick.url, ua: c.ua }
 }
 
-function ytdlpUrl(target, fmt, extra = [], ms = 60000) {
+function ytdlpUrl(target, fmt, extra = [], ms = 30000) {
   return new Promise((resolve, reject) => {
     if (S.err) return reject(new Error(S.err))
     const p = spawn(S.bin, ['--no-playlist', '--no-warnings', '-q', '-g', '-f', fmt, ...S.js, ...extra, ...S.cookies, '--', target])
@@ -64,7 +64,7 @@ function ytdlpUrl(target, fmt, extra = [], ms = 60000) {
 
 async function check(o) {
   const ua = o.ua || UA
-  const r = await fetch(o.url, { headers: { Range: 'bytes=0-1', 'User-Agent': ua }, redirect: 'follow', signal: AbortSignal.timeout(10000) })
+  const r = await fetch(o.url, { headers: { Range: 'bytes=0-1', 'User-Agent': ua }, redirect: 'follow', signal: AbortSignal.timeout(5000) })
   const ct = r.headers.get('content-type') || ''
   const m = (r.headers.get('content-range') || '').match(/\/(\d+)$/)
   try { if (r.body) await r.body.cancel() } catch {}
@@ -91,10 +91,10 @@ async function attempt(a, trace) {
   } catch (e) {
     sh.rec(a.name, false, Date.now() - t0, errMsg(e))
     trace.push({ metodo: a.name, ok: false, ms: Date.now() - t0, error: errMsg(e).slice(0, 160) })
-    console.log('⚠', a.name, '→', errMsg(e))
     throw e
   }
 }
+
 const firstOf = ps => new Promise((resolve, reject) => {
   let left = ps.length
   if (!left) return reject(new Error('sin métodos'))
@@ -115,7 +115,7 @@ async function resolve(id, su, title, trace, fresh) {
     for (const c of IT) att.push({ name: 'youtube-' + c.name, base: 60, fn: () => innertube(id, c) })
     for (const b of sh.inv()) att.push({ name: 'invidious ' + host(b), base: 30, fn: async () => `${b}/latest_version?id=${id}&itag=140&local=true` })
     for (const b of sh.pip()) att.push({ name: 'piped ' + host(b), base: 20, fn: async () => {
-      const j = await fetchJson(`${b}/streams/${id}`, 6000)
+      const j = await fetchJson(`${b}/streams/${id}`, 4000)
       const a = (j.audioStreams || []).find(x => /mp4/.test(x.mimeType || '')) || (j.audioStreams || [])[0]
       if (!a || !a.url) throw new Error('sin stream')
       return a.url
@@ -128,7 +128,7 @@ async function resolve(id, su, title, trace, fresh) {
   const ordered = order(att)
   const fastG = ordered.filter(a => !a.slow)
   const slowG = ordered.filter(a => a.slow)
-  const deadline = Date.now() + 170000
+  const deadline = Date.now() + 60000
   let found = null
   for (let i = 0; i < fastG.length && !found && Date.now() < deadline; i += 3) {
     try { found = await firstOf(fastG.slice(i, i + 3).map(a => attempt(a, trace))) } catch {}
@@ -137,10 +137,9 @@ async function resolve(id, su, title, trace, fresh) {
     if (found || Date.now() > deadline) break
     try { found = await attempt(a, trace) } catch {}
   }
-  if (!found) throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
+  if (!found) throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron).')
   cache.set(key, { t: Date.now(), v: found })
   if (cache.size > 200) cache.delete(cache.keys().next().value)
-  console.log('✅ audio listo')
   return found
 }
 
@@ -157,63 +156,51 @@ async function proxy(req, res, src) {
   Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res)
 }
 
-// ───── descarga rápida en tramos paralelos (la usa el bot) ─────
 async function fetchRange(src, a, b) {
-  const r = await fetch(src.url, { headers: { 'User-Agent': src.ua || UA, Range: 'bytes=' + a + '-' + b }, redirect: 'follow', signal: AbortSignal.timeout(60000) })
-  if (r.status !== 206) throw new Error('rango no soportado (' + r.status + ')')
+  const r = await fetch(src.url, { headers: { 'User-Agent': src.ua || UA, Range: 'bytes=' + a + '-' + b }, redirect: 'follow', signal: AbortSignal.timeout(30000) })
+  if (r.status !== 206) throw new Error('rango no soportado')
   const buf = Buffer.from(await r.arrayBuffer())
   if (buf.length !== b - a + 1) throw new Error('rango incompleto')
   return buf
 }
+
 async function downloadSingle(src) {
-  const r = await fetch(src.url, { headers: { 'User-Agent': src.ua || UA }, redirect: 'follow', signal: AbortSignal.timeout(120000) })
+  const r = await fetch(src.url, { headers: { 'User-Agent': src.ua || UA }, redirect: 'follow', signal: AbortSignal.timeout(60000) })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   const chunks = []
   let n = 0
   for await (const c of r.body) {
     n += c.length
-    if (n > CAP) throw new Error('El audio supera el límite de 30 MB')
+    if (n > CAP) throw new Error('Supera 30 MB')
     chunks.push(c)
   }
   return Buffer.concat(chunks)
 }
+
 async function download(src) {
   const total = src.total
-  if (total > CAP) throw new Error('El audio supera el límite de 30 MB')
+  if (total > CAP) throw new Error('Supera 30 MB')
   if (total > 400 * 1024) {
     const N = total > 6 * 1024 * 1024 ? 6 : 4
     const size = Math.ceil(total / N)
     try {
       const parts = await Promise.all(Array.from({ length: N }, (_, i) => fetchRange(src, i * size, Math.min(total - 1, (i + 1) * size - 1))))
       return Buffer.concat(parts)
-    } catch (e) { console.log('⚠ descarga paralela falló:', errMsg(e), '→ descarga simple') }
+    } catch (e) {}
   }
   return downloadSingle(src)
 }
+
 async function audio(id, su, title) {
   const trace = []
-  const t0 = Date.now()
   let src = await resolve(id, su, title, trace, false)
-  const t1 = Date.now()
   let buf
   try { buf = await download(src) } catch (e) {
-    console.log('⚠ link guardado falló →', errMsg(e))
     src = await resolve(id, su, title, trace, true)
     buf = await download(src)
   }
-  console.log('⏱ link ' + (t1 - t0) + ' ms | descarga ' + (Date.now() - t1) + ' ms | ' + (buf.length / 1048576).toFixed(1) + ' MB')
   return { buf, ct: src.ct || '' }
 }
-
-let checking = false
-async function selfCheck() {
-  if (checking) return
-  checking = true
-  try { await resolve('dQw4w9WgXcQ', '', '', [], true) } catch {}
-  checking = false
-}
-setTimeout(selfCheck, 90000)
-setInterval(selfCheck, 15 * 60000).unref()
 
 module.exports = async (req, res) => {
   const u = new URL(req.url, 'http://x')
@@ -225,17 +212,7 @@ module.exports = async (req, res) => {
   const title = (u.searchParams.get('t') || '').replace(/\(.*?\)|\[.*?\]/g, '').trim().slice(0, 120)
   const okId = /^[\w-]{11}$/.test(id)
   const okSu = /^https:\/\/([\w-]+\.)?soundcloud\.com\//.test(su)
-  if (!okId && !okSu) { send(res, 400, { error: 'Falta ?id= (YouTube) o ?u= (SoundCloud)' }); return true }
-
-  if (p === '/api/diag') {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' })
-    res.write('Probando métodos, espera... (cada línea sale al terminar)\n\n')
-    const tr = { n: 0, push(x) { this.n++; res.write((x.ok ? 'OK     ' : 'FALLÓ  ') + x.metodo + (x.ms ? ' (' + x.ms + ' ms)' : '') + (x.error ? ' → ' + x.error : '') + '\n') }, get length() { return this.n } }
-    try { await resolve(okId ? id : '', su, title, tr, true); res.write('\nRESULTADO: hay un método que funciona\n') }
-    catch (e) { res.write('\nRESULTADO: ' + errMsg(e) + '\n') }
-    res.end()
-    return true
-  }
+  if (!okId && !okSu) { send(res, 400, { error: 'Falta ?id= o ?u=' }); return true }
 
   const trace = []
   try {

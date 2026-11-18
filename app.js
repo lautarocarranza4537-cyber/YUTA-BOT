@@ -117,7 +117,7 @@ function drawCmds(cat){
   try{
     const j=await (await fetch('/api/wa/commands')).json();
     ALL=j.commands||[];
-    const order=['General','Música','Descargas','Grupo','Anime','Juegos','Herramientas','Owner'];
+    const order=['General','Música','Descargas','Convertir','Buscar','IA','Economía','Grupo','Anime','Juegos','Herramientas','Owner'];
     const cats=order.filter(o=>ALL.some(c=>c.cat===o));
     chips($('cc'),[['Todos','']].concat(cats.map(c=>[c,c])),'',drawCmds);
     drawCmds('');

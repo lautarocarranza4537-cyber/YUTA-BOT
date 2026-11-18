@@ -1,77 +1,161 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#04060c">
-<title>YUTA Play · Bot de WhatsApp</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YUTA Play - Validación de Token</title>
+    <style>
+        body { 
+            background: #0f172a; 
+            color: #f8fafc; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: #1e293b; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
+            width: 340px; 
+            text-align: center; 
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 12px 0; 
+            border: 1px solid #334155; 
+            border-radius: 6px; 
+            background: #0f172a; 
+            color: white; 
+            box-sizing: border-box; 
+            font-size: 14px;
+        }
+        input:focus { outline: none; border-color: #6366f1; }
+        button { 
+            background: #6366f1; 
+            color: white; 
+            border: none; 
+            padding: 12px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            width: 100%; 
+            font-weight: bold; 
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #4f46e5; }
+        #error-msg { 
+            color: #ef4444; 
+            font-size: 13px; 
+            margin-top: 8px; 
+            min-height: 18px; 
+            font-weight: 500;
+        }
+        .hidden { display: none !important; }
+        #app-content { width: 100%; }
+        #result { margin-top: 15px; text-align: left; }
+        img { width: 100%; border-radius: 6px; }
+        audio { width: 100%; margin-top: 10px; }
+        .logout-btn { background: #334155; margin-top: 15px; font-size: 12px; padding: 6px; }
+        .logout-btn:hover { background: #475569; }
+    </style>
 </head>
 <body>
-<canvas id="fx"></canvas>
-<header class="top"><div class="logo">YUTA<span>PLAY</span></div></header>
-<main>
-  <section class="view on">
-    <div class="hero">
-      <svg class="art" viewBox="0 0 400 230" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <defs>
-          <radialGradient id="mn" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#cfe6ff"/><stop offset="1" stop-color="#7fc4ff" stop-opacity="0"/></radialGradient>
-          <linearGradient id="bl" x1="0" x2="1"><stop offset="0" stop-color="#5b6c8f"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#bfe0ff"/></linearGradient>
-          <filter id="gl"><feGaussianBlur stdDeviation="3"/></filter>
-        </defs>
-        <circle class="moon" cx="305" cy="70" r="74" fill="url(#mn)"/>
-        <circle cx="305" cy="70" r="34" fill="#eaf4ff"/>
-        <g class="aura" fill="none" stroke="#7fc4ff" stroke-linecap="round">
-          <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="3" filter="url(#gl)"/>
-          <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="1.2"/>
-        </g>
-        <g transform="rotate(-24 200 125)">
-          <rect x="14" y="117" width="78" height="9" rx="3" fill="#0a1020" stroke="#7fc4ff" stroke-width=".8"/>
-          <rect x="92" y="112" width="6" height="19" rx="2" fill="#7fc4ff"/>
-          <rect x="98" y="119" width="220" height="5" rx="2" fill="url(#bl)"/>
-          <polygon points="318,119 346,121.5 318,124" fill="#e8f4ff"/>
-        </g>
-      </svg>
-      <div class="kj">呪</div>
-      <div class="hero-t">
-        <h2>YUTA BOT</h2>
-        <p>Bot de WhatsApp: música, videos, grupos, anime y juegos.</p>
-        <div class="hbtns"><button id="go-link" class="btn fill rip">Vincular mi WhatsApp</button><button id="go-cmd" class="btn rip">Ver comandos</button></div>
-      </div>
+
+    <!-- PANTALLA DE INGRESO DE TOKEN -->
+    <div id="auth-screen" class="card">
+        <h2>Ingresar token</h2>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 15px;">
+            Introduce tu token autorizado para poder vincularte.
+        </p>
+        <input type="text" id="token-input" placeholder="Escribe tu token aquí...">
+        <button onclick="validarToken()">Vincular</button>
+        <div id="error-msg"></div>
     </div>
 
-    <div id="link" class="rv">
-      <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
-      <p class="note">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</p>
-      <form id="lf" class="s col">
-        <input id="lp" type="tel" inputmode="numeric" placeholder="Tu número: 5493513157041" autocomplete="off">
-        <input id="ln" type="text" maxlength="24" placeholder="Nombre de tu bot (opcional). Ej: GOKU" autocomplete="off">
-        <label class="file rip"><span id="lfn">Elegir banner del menú (opcional)</span><input id="lb" type="file" accept="image/*" hidden></label>
-        <img id="lprev" class="prev" alt="Vista previa del banner" hidden>
-        <button class="btn fill rip">Obtener código</button>
-      </form>
-      <div id="lout"></div>
+    <!-- APLICACIÓN PRINCIPAL -->
+    <div id="app-screen" class="card hidden">
+        <div id="app-content">
+            <h2>🎵 Yuta Play</h2>
+            <p style="color: #22c55e; font-size: 12px; margin-bottom: 10px;">🟢 Vinculado correctamente</p>
+            <input type="text" id="query" placeholder="Escribe el nombre o link...">
+            <button onclick="buscar()">Buscar / Escuchar</button>
+            <div id="result"></div>
+            <button class="logout-btn" onclick="cerrarSesion()">Cerrar sesión</button>
+        </div>
     </div>
 
-    <div class="card rv">
-      <h3>Cómo vincular</h3>
-      <p>1. Elige el nombre y el banner de tu bot (opcional) y toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.menu</b> en cualquier chat.<br>5. En un grupo, el bot empieza apagado: escribe <b>.bot on</b> para que los demás puedan usarlo.</p>
-    </div>
+    <script>
+        const API_URL = "";
+        const TOKENS_VALIDOS = [
+            "MIAKHALIFAPRIME", "Jonathan2026", "Jon67y89", "año2027",
+            "botpremium27", "chambeador247", "abeduldecacao24", 
+            "bondiolasigma67", "Yutaplay", "Mipansususu67"
+        ];
 
-    <div id="cmds" class="rv">
-      <h3 class="sec">Comandos</h3>
-      <div id="cc" class="chips"></div>
-      <div id="cl" class="card"><p class="msg">Cargando…</p></div>
-      <p class="note">Prefijos: <b>.</b> y <b>,</b> — también responde a tu propia cuenta vinculada.</p>
-    </div>
+        window.addEventListener('DOMContentLoaded', () => {
+            const tokenGuardado = localStorage.getItem('yuta_token_auth');
+            if (tokenGuardado && TOKENS_VALIDOS.includes(tokenGuardado)) {
+                mostrarApp();
+            }
+        });
 
-    <div class="card rv">
-      <h3>Importante</h3>
-      <p>Al vincular, este servidor queda como un dispositivo más de tu WhatsApp y puede leer los mensajes de esa cuenta, igual que WhatsApp Web. Vincula solo tu propio número, mejor uno secundario. Puedes quitarlo cuando quieras desde WhatsApp, en Dispositivos vinculados. WhatsApp no permite oficialmente los bots, así que la cuenta podría ser limitada. Si el servidor se reinicia, hay que volver a vincular. El nombre y el banner aparecen en los mensajes del bot y no cambian tu nombre de perfil.</p>
-    </div>
-  </section>
-</main>
-<div id="toast"></div>
-<script src="app.js"></script>
+        function validarToken() {
+            const inputVal = document.getElementById('token-input').value.trim();
+            const errorDiv = document.getElementById('error-msg');
+
+            if (TOKENS_VALIDOS.includes(inputVal)) {
+                localStorage.setItem('yuta_token_auth', inputVal);
+                errorDiv.textContent = "";
+                mostrarApp();
+            } else {
+                errorDiv.textContent = "token No registrado";
+                document.getElementById('token-input').style.borderColor = "#ef4444";
+            }
+        }
+
+        function mostrarApp() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+        }
+
+        function cerrarSesion() {
+            localStorage.removeItem('yuta_token_auth');
+            document.getElementById('token-input').value = "";
+            document.getElementById('error-msg').textContent = "";
+            document.getElementById('token-input').style.borderColor = "#334155";
+            document.getElementById('app-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+        }
+
+        async function buscar() {
+            const q = document.getElementById('query').value;
+            const resDiv = document.getElementById('result');
+            if (!q) return alert("Escribe algo para buscar");
+
+            resDiv.innerHTML = "⏳ Buscando...";
+            try {
+                const response = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q)}`);
+                const data = await response.json();
+                if (data.error) {
+                    resDiv.innerHTML = `<p style="color:#ef4444; font-size:13px;">${data.error}</p>`;
+                    return;
+                }
+                resDiv.innerHTML = `
+                    <img src="${data.thumbnail}" alt="Miniatura">
+                    <p style="font-size:14px; margin: 8px 0;"><b>${data.title}</b></p>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Canal: ${data.author} | Duración: ${data.duration}</p>
+                    <audio controls src="${API_URL}/api/audio?q=${encodeURIComponent(q)}"></audio>
+                `;
+            } catch (e) {
+                resDiv.innerHTML = `<p style="color:#ef4444; font-size:13px;">Error al conectar con la API.</p>`;
+            }
+        }
+    </script>
 </body>
 </html>

@@ -4,6 +4,9 @@ require('./cmds_b')(H)
 require('./cmds_c')(H)
 require('./cmds_d')(H)
 require('./cmds_e')(H)
+require('./cmds_f')(H)
+require('./cmds_g')(H)
+require('./cmds_h')(H)
 const { commands, num, dbOf, saveDb, grp, getMeta, isAdmin, botAdmin, getBody, getCtx } = H
 
 const PREFIXES = ['.', ',']
