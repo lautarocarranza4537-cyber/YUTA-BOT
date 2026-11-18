@@ -3,351 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YUTA PLAY - Bot de WhatsApp</title>
-    <style>
-        :root {
-            --bg-color: #090d16;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --card-border: rgba(255, 255, 255, 0.08);
-            --accent: #6366f1;
-            --accent-glow: rgba(99, 102, 241, 0.4);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; overflow-x: hidden; padding-bottom: 3rem; }
-
-        /* Fondo con animación sutil */
-        body::before {
-            content: '';
-            position: fixed;
-            top: -50%; left: -50%; width: 200vw; height: 200vh;
-            background: radial-gradient(circle at 70% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-                        radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.06) 0%, transparent 50%);
-            z-index: -1;
-            animation: bgMove 15s ease infinite alternate;
-        }
-        @keyframes bgMove {
-            0% { transform: translate(0, 0); }
-            100% { transform: translate(-30px, -30px); }
-        }
-
-        header {
-            padding: 1.5rem 1rem 0.5rem 1.5rem;
-            font-size: 0.9rem;
-            font-weight: 800;
-            letter-spacing: 2px;
-            color: var(--text-muted);
-        }
-
-        .container { max-width: 480px; margin: 0 auto; padding: 1rem; }
-
-        /* Tarjeta Hero Principal */
-        .hero-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
-            border: 1px solid var(--card-border);
-            border-radius: 20px;
-            padding: 1.8rem;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
-            animation: fadeIn 0.8s ease-out;
-        }
-        .hero-card::after {
-            content: '';
-            position: absolute;
-            top: -20px; right: -20px;
-            width: 140px; height: 140px;
-            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-            border-radius: 50%;
-            pointer-events: none;
-        }
-
-        .hero-card h1 { font-size: 1.8rem; font-weight: 900; letter-spacing: 1px; margin-bottom: 0.5rem; }
-        .hero-card p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 1.5rem; }
-
-        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
-        .btn {
-            padding: 10px 20px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            cursor: pointer;
-            border: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: inline-flex; align-items: center; justify-content: center;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: white;
-            box-shadow: 0 4px 15px var(--accent-glow);
-        }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
-        .btn-primary:active { transform: translateY(0); }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
-
-        /* Sección de Vinculación */
-        .section-box {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-top: 1.5rem;
-            backdrop-filter: blur(10px);
-            animation: slideUp 0.6s ease-out;
-        }
-        .section-title { font-size: 1.1rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.4rem; }
-        .section-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.2rem; }
-
-        .input-field {
-            width: 100%;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 12px 15px;
-            color: white;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s;
-        }
-        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
-
-        /* Instrucciones */
-        .instructions-list {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            padding-left: 1.2rem;
-            line-height: 1.6;
-        }
-        .instructions-list li { margin-bottom: 4px; }
-
-        /* Categorías de Comandos[span_2](start_span)[span_2](end_span) */
-        .categories-container {
-            display: flex;
-            gap: 8px;
-            overflow-x: auto;
-            padding: 0.5rem 0 1rem 0;
-            scrollbar-width: none;
-        }
-        .categories-container::-webkit-scrollbar { display: none; }
-        .chip {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid var(--card-border);
-            color: var(--text-muted);
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.3s;
-        }
-        .chip.active, .chip:hover {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-            box-shadow: 0 0 12px var(--accent-glow);
-        }
-
-        /* Lista de Comandos */
-        .command-card {
-            background: rgba(30, 41, 59, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 0.8rem;
-            transition: transform 0.2s;
-        }
-        .command-card:hover { transform: translateX(4px); background: rgba(30, 41, 59, 0.7); }
-        .cmd-name { font-family: monospace; color: #38bdf8; font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
-        .cmd-desc { font-size: 0.8rem; color: var(--text-muted); }
-
-        /* Modal Token */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 8, 15, 0.85);
-            backdrop-filter: blur(8px);
-            display: flex; align-items: center; justify-content: center;
-            z-index: 1000;
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
-        .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-card {
-            background: #1e293b;
-            border: 1px solid var(--card-border);
-            border-radius: 20px;
-            padding: 2rem;
-            width: 90%; max-width: 360px;
-            text-align: center;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-            transform: scale(0.9);
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        .modal-overlay.active .modal-card { transform: scale(1); }
-        .modal-card h3 { margin-bottom: 0.5rem; font-size: 1.3rem; }
-        .modal-card p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.2rem; }
-        #modal-error { color: #ef4444; font-size: 0.8rem; margin-top: 8px; font-weight: 600; min-height: 18px; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
+    <title>YUTA BOT — 乙骨 憂太 | Professional System</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- INTRO CINEMÁTICA TIPO DOMINIO EXPANDIDO -->
+    <div class="cinematic-intro" id="cinematic-intro">
+        <div class="intro-kanji">乙骨 憂太</div>
+        <div class="intro-sub">SPECIAL GRADE SYSTEM INITIALIZING...</div>
+    </div>
 
-    <header>YUTA PLAY</header>
+    <!-- CANVAS DE PÍXELES DESVANECIÉNDOSE CON EL SCROLL -->
+    <canvas id="pixel-canvas"></canvas>
+
+    <!-- FONDO ESTILO MANGA DE YUTA OKKOTSU -->
+    <div class="manga-bg"></div>
+    <div class="halftone-overlay"></div>
+    <div class="kanji-watermark">乙骨憂太</div>
+    <header>
+        <div style="font-weight: 900; letter-spacing: 2px; font-size: 0.9rem;">YUTA PLAY <span style="color:var(--accent-purple);">// 乙骨</span></div>
+        <div style="font-size: 0.75rem; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 6px;">
+            <div id="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></div>
+            <span id="status-text">Desconectado</span>
+        </div>
+    </header>
 
     <div class="container">
         <!-- HERO -->
         <div class="hero-card">
-            <h1>YUTA BOT</h1>
-            <p>Bot de WhatsApp: música, vídeos, grupos, anime y juegos.</p>
-            <div class="btn-group">
-                <button class="btn btn-primary" onclick="abrirModalVinculacion()">Vincular mi WhatsApp</button>
-                <button class="btn btn-secondary" onclick="scrollAComandos()">Ver comandos</button>
+            <div style="font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; padding: 3px 10px; border-radius: 6px; background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.5); color: #c4b5fd; display: inline-block; margin-bottom: 0.8rem;">SPECIAL GRADE • 乙骨 憂太</div>
+            <h1 style="font-size: 2.1rem; font-weight: 950; letter-spacing: 1px; margin-bottom: 0.5rem; background: linear-gradient(90deg, #fff, #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">YUTA BOT</h1>
+            <p style="font-size: 0.88rem; color: #94a3b8; line-height: 1.45; margin-bottom: 1.5rem;">Bot oficial de WhatsApp: streaming de música, descargas Pinterest HD, anime y gestión total de grupos.</p>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="abrirVinculacion()" class="btn-cursed" style="flex: 1;">⚡ Vincular WhatsApp</button>
+                <button onclick="document.getElementById('seccion-cmds').scrollIntoView({behavior:'smooth'})" style="padding: 13px 18px; border-radius: 12px; font-weight: 800; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;">Comandos</button>
             </div>
         </div>
+        <!-- PANEL VINCULACIÓN -->
+        <div id="panel-vincular" class="panel-box" style="display: none;">
+            <div style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.35rem;">Vinculación por <span style="color:var(--accent-cyan);">WhatsApp (8 Dígitos)</span></div>
+            <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.1rem;">Escribe tu número completo con código de país, <b>sin el signo + ni espacios</b>.</div>
 
-        <!-- PANEL DE VINCULACIÓN (Oculto hasta validar token) -->
-        <div id="panel-vinculacion" class="section-box" style="display: none;">
-            <div class="section-title">Vinculación por WhatsApp</div>
-            <div class="section-desc">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</div>
+            <!-- Input optimizado exactamente como lo pediste: Ej 549351... -->
+            <input type="tel" id="wa-number" class="input-dark" placeholder="Ej: 5493513157041">
+            <button id="btn-get-code" onclick="solicitarCodigo8Digitos()" class="btn-cursed" style="width: 100%;">Obtener código de 8 dígitos</button>
             
-            <input type="text" class="input-field" placeholder="Tu número: 5493513157041">
-            <input type="text" class="input-field" placeholder="Nombre de tu bot (opcional). Ej: GOKU">
-            <input type="text" class="input-field" placeholder="Elegir banner del menú (opcional)">
-            
-            <button class="btn btn-primary" style="width: 100%;" onclick="alert('Generando código de emparejamiento...')">Obtener código</button>
+            <div id="pair-error" style="color: #ef4444; font-size: 0.82rem; font-weight: 700; margin-top: 10px; text-align: center;"></div>
 
-            <div style="margin-top: 1.5rem;">
-                <div style="font-size: 0.85rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;">Cómo vincular</div>
-                <ol class="instructions-list">
-                    <li>Elige el nombre y el banner de tu bot (opcional) y toca <b>Obtener código</b>.</li>
-                    <li>En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.</li>
-                    <li>Elige <b>Vincular con número de teléfono</b> y escribe el código.</li>
-                    <li>Cuando esta página diga Vinculado, escribe <b>.menu</b> en cualquier chat.</li>
-                    <li>En un grupo, el bot empieza apagado: escribe <b>.bot on</b> para que los demás puedan usarlo.</li>
-                </ol>
+            <div id="pairing-result" style="display: none; margin-top: 1.2rem; padding: 1.2rem; border-radius: 14px; background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(56,189,248,0.12)); border: 1.5px solid rgba(139,92,246,0.6); text-align: center;">
+                <div style="font-size: 0.78rem; color: #c4b5fd; font-weight: 700; letter-spacing: 1px;">TU CÓDIGO DE VINCULACIÓN</div>
+                <div id="pairing-digits" style="font-family: monospace; font-size: 2rem; font-weight: 900; letter-spacing: 4px; color: #fff; text-shadow: 0 0 15px rgba(139,92,246,0.8); margin: 10px 0;">---- - ----</div>
+                <button onclick="copiarCodigo()" style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 7px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer;">📋 Copiar código</button>
+            </div>
+
+            <div id="connected-box" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.4); text-align: center;">
+                <div style="color: #4ade80; font-weight: 800; font-size: 0.95rem;">✅ ¡WhatsApp Vinculado Correctamente!</div>
+                <div id="connected-num" style="font-size: 0.8rem; color: #cbd5e1; margin: 4px 0 10px;"></div>
+                <button onclick="cerrarSesionWA()" style="background: rgba(255,255,255,0.1); color: #fff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 0.75rem; cursor: pointer;">Desvincular sesión</button>
             </div>
         </div>
-
-        <!-- SECCIÓN COMANDOS[span_3](start_span)[span_3](end_span) -->
-        <div id="seccion-comandos" style="margin-top: 2rem;">
-            <div style="font-size: 1.1rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 0.5rem; color: var(--text-muted);">COMANDOS</div>
+        <!-- COMANDOS -->
+        <div id="seccion-cmds" style="margin-top: 2rem;">
+            <div style="font-size: 0.85rem; font-weight: 900; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 0.7rem; text-transform: uppercase;">COMANDOS DISPONIBLES</div>
             
-            <!-- Categorías -->
-            <div class="categories-container">
-                <div class="chip active" onclick="filtrar('todos', this)">Todos</div>
-                <div class="chip" onclick="filtrar('general', this)">General</div>
-                <div class="chip" onclick="filtrar('musica', this)">Música</div>
-                <div class="chip" onclick="filtrar('descargas', this)">Descargas</div>
-                <div class="chip" onclick="filtrar('grupo', this)">Grupo</div>
-                <div class="chip" onclick="filtrar('anime', this)">Anime</div>
-                <div class="chip" onclick="filtrar('juegos', this)">Juegos</div>
+            <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 0.8rem; scrollbar-width: none;">
+                <button class="chip active" onclick="filtrarCmd('todos', this)">Todos</button>
+                <button class="chip" onclick="filtrarCmd('general', this)">General</button>
+                <button class="chip" onclick="filtrarCmd('musica', this)">Música</button>
+                <button class="chip" onclick="filtrarCmd('descargas', this)">Descargas</button>
+                <button class="chip" onclick="filtrarCmd('grupo', this)">Grupo</button>
             </div>
 
-            <!-- Lista de Comandos -->
             <div id="lista-comandos">
-                <div class="command-card" data-cat="general">
-                    <div class="cmd-name">.menu [sección]</div>
-                    <div class="cmd-desc">Muestra el menú interactivo con todos los comandos disponibles del bot.</div>
+                <div class="cmd-item" data-cat="general">
+                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.menu</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Muestra el panel interactivo y la lista completa de comandos.</div>
                 </div>
-                <div class="command-card" data-cat="general">
-                    <div class="cmd-name">.owner</div>
-                    <div class="cmd-desc">Muestra la información de contacto oficial del creador del bot.</div>
+                <div class="cmd-item" data-cat="general">
+                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.ping</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Mide la latencia de respuesta del servidor en milisegundos.</div>
                 </div>
-                <div class="command-card" data-cat="general">
-                    <div class="cmd-name">.ping</div>
-                    <div class="cmd-desc">Comprueba la velocidad de respuesta y latencia actual del bot.</div>
+                <div class="cmd-item" data-cat="musica">
+                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.play &lt;canción&gt;</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Reproduce o descarga música de YouTube con streaming ultrarrápido.</div>
                 </div>
-                <div class="command-card" data-cat="musica">
-                    <div class="cmd-name">.play / .playaudio</div>
-                    <div class="cmd-desc">Busca y reproduce música de YouTube o la envía directamente como nota de voz / audio.</div>
+                <div class="cmd-item" data-cat="musica">
+                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.playaudio &lt;canción&gt;</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Envía la música directamente como nota de voz de WhatsApp.</div>
                 </div>
-                <div class="command-card" data-cat="descargas">
-                    <div class="cmd-name">.pin / .pinvideo</div>
-                    <div class="cmd-desc">Busca y descarga imágenes o videos limpios directamente desde Pinterest.</div>
+                <div class="cmd-item" data-cat="descargas">
+                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.pin / .pinvideo</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Busca y descarga imágenes o videos limpios desde Pinterest.</div>
                 </div>
-                <div class="command-card" data-cat="grupo">
-                    <div class="cmd-name">.bot on / off</div>
-                    <div class="cmd-desc">Activa o desactiva las funciones del bot en chats grupales de WhatsApp.</div>
+                <div class="cmd-item" data-cat="grupo">
+                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.bot on / off</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Enciende o apaga las funciones del bot en chats grupales.</div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- MODAL DE TOKEN -->
-    <div id="modal-token" class="modal-overlay">
-        <div class="modal-card">
-            <h3>Ingresar token</h3>
-            <p>Introduce tu token autorizado para acceder a las herramientas de vinculación.</p>
-            <input type="text" id="token-input" class="input-field" placeholder="Escribe tu token aquí...">
-            <button class="btn btn-primary" style="width: 100%;" onclick="validarTokenModal()">Vincular</button>
-            <div id="modal-error"></div>
+    <!-- MODAL TOKEN -->
+    <div id="modal-token" class="modal-backdrop">
+        <div class="modal-box">
+            <div style="font-size: 1.8rem; margin-bottom: 6px;">🔒</div>
+            <h3 style="font-size: 1.35rem; font-weight: 900; margin-bottom: 0.4rem;">Ingresar token</h3>
+            <p style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 1.2rem;">Introduce tu token autorizado para acceder a la vinculación.</p>
+            <input type="text" id="token-input" class="input-dark" placeholder="Escribe tu token aquí...">
+            <button onclick="verificarToken()" class="btn-cursed" style="width: 100%;">Validar token</button>
+            <div id="token-error" style="color: #ef4444; font-size: 0.82rem; font-weight: 700; margin-top: 10px; min-height: 18px;"></div>
+            <button onclick="document.getElementById('modal-token').classList.remove('open')" style="background: transparent; color: #94a3b8; border: none; margin-top: 10px; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
         </div>
     </div>
+    <script>
+        // CANVAS DE PÍXELES DESVANECIÉNDOSE CON EL SCROLL
+        const canvas = document.getElementById('pixel-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, particles = [];
 
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        for (let i = 0; i < 85; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                size: Math.random() * 2.8 + 1,
+                speedY: Math.random() * 0.7 + 0.2,
+                opacity: Math.random() * 0.75 + 0.2
+            });
+        }
+
+        function animatePixels() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = 'rgba(139, 92, 246, 0.65)';
+            particles.forEach(p => {
+                p.y -= p.speedY + (window.scrollY * 0.0025);
+                if (p.y < 0) p.y = height;
+                ctx.globalAlpha = p.opacity;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            });
+            requestAnimationFrame(animatePixels);
+        }
+        animatePixels();
+    </script>
     <script>
         const TOKENS_VALIDOS = [
             "MIAKHALIFAPRIME", "Jonathan2026", "Jon67y89", "año2027",
             "botpremium27", "chambeador247", "abeduldecacao24", 
             "bondiolasigma67", "Yutaplay", "Mipansususu67"
         ];
+        let codigoActual = '';
 
-        function abrirModalVinculacion() {
-            // Verificar si ya está validado previamente en este navegador
-            const tokenGuardado = localStorage.getItem('yuta_token_auth');
-            if (tokenGuardado && TOKENS_VALIDOS.includes(tokenGuardado)) {
-                mostrarPanelVinculacion();
+        async function actualizarEstado() {
+            try {
+                const r = await fetch('/api/status');
+                const data = await r.json();
+                const dot = document.getElementById('status-dot');
+                const txt = document.getElementById('status-text');
+                const connBox = document.getElementById('connected-box');
+                const pairRes = document.getElementById('pairing-result');
+
+                if (data.status === 'connected') {
+                    dot.style.background = '#22c55e';
+                    dot.style.boxShadow = '0 0 10px #22c55e';
+                    txt.textContent = 'Conectado';
+                    if (connBox) {
+                        connBox.style.display = 'block';
+                        document.getElementById('connected-num').textContent = 'Número activo: +' + (data.user || '');
+                    }
+                    if (pairRes) pairRes.style.display = 'none';
+                } else {
+                    dot.style.background = '#ef4444';
+                    dot.style.boxShadow = '0 0 8px #ef4444';
+                    txt.textContent = data.status === 'connecting' ? 'Conectando...' : 'Desconectado';
+                    if (connBox) connBox.style.display = 'none';
+                }
+            } catch {}
+        }
+        setInterval(actualizarEstado, 4000);
+        actualizarEstado();
+
+        function abrirVinculacion() {
+            const saved = localStorage.getItem('yuta_token_auth');
+            if (saved && TOKENS_VALIDOS.includes(saved)) {
+                desbloquearPanel();
             } else {
-                document.getElementById('modal-token').classList.add('active');
+                document.getElementById('modal-token').classList.add('open');
             }
         }
 
-        function validarTokenModal() {
+        function verificarToken() {
             const val = document.getElementById('token-input').value.trim();
-            const errDiv = document.getElementById('modal-error');
-
+            const err = document.getElementById('token-error');
             if (TOKENS_VALIDOS.includes(val)) {
                 localStorage.setItem('yuta_token_auth', val);
-                document.getElementById('modal-token').classList.remove('active');
-                errDiv.textContent = "";
-                document.getElementById('token-input').value = "";
-                mostrarPanelVinculacion();
+                err.textContent = '';
+                document.getElementById('modal-token').classList.remove('open');
+                desbloquearPanel();
             } else {
-                errDiv.textContent = "token No registrado";
+                err.textContent = 'token No registrado';
             }
         }
 
-        function mostrarPanelVinculacion() {
-            const panel = document.getElementById('panel-vinculacion');
+        function desbloquearPanel() {
+            const panel = document.getElementById('panel-vincular');
             panel.style.display = 'block';
             panel.scrollIntoView({ behavior: 'smooth' });
         }
+    </script>
+    <script>
+        async function solicitarCodigo8Digitos() {
+            const numInput = document.getElementById('wa-number').value.trim();
+            const btn = document.getElementById('btn-get-code');
+            const err = document.getElementById('pair-error');
+            const resBox = document.getElementById('pairing-result');
+            const digitsEl = document.getElementById('pairing-digits');
 
-        function scrollAComandos() {
-            document.getElementById('seccion-comandos').scrollIntoView({ behavior: 'smooth' });
+            err.textContent = '';
+            // Limpiar por si el usuario puso por accidente el signo +
+            const num = numInput.replace(/[^0-9]/g, '');
+
+            if (!num || num.length < 10) {
+                err.textContent = 'Escribe tu número sin el signo +. Ej: 5493513157041';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Generando código en WhatsApp...';
+
+            try {
+                const r = await fetch('/api/pair', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number: num })
+                });
+                const data = await r.json();
+
+                if (!data.ok) {
+                    err.textContent = data.error || 'Error al solicitar el código.';
+                } else if (data.code) {
+                    codigoActual = data.code.replace('-', '');
+                    digitsEl.textContent = data.code;
+                    resBox.style.display = 'block';
+                }
+            } catch (e) {
+                err.textContent = 'Error de conexión con el servidor.';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Obtener código de 8 dígitos';
+            }
         }
 
-        function filtrar(cat, el) {
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
+        function copiarCodigo() {
+            if (!codigoActual) return;
+            navigator.clipboard.writeText(codigoActual);
+            alert('¡Código copiado al portapapeles: ' + codigoActual + '!');
+        }
 
-            const cards = document.querySelectorAll('.command-card');
-            cards.forEach(card => {
-                if (cat === 'todos' || card.getAttribute('data-cat') === cat) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
+        async function cerrarSesionWA() {
+            if (!confirm('¿Seguro que deseas desvincular tu WhatsApp?')) return;
+            await fetch('/api/logout', { method: 'POST' });
+            actualizarEstado();
+        }
+
+        function filtrarCmd(cat, chip) {
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            document.querySelectorAll('.cmd-item').forEach(item => {
+                item.style.display = (cat === 'todos' || item.dataset.cat === cat) ? 'block' : 'none';
             });
         }
     </script>

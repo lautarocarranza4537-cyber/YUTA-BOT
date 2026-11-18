@@ -8,10 +8,12 @@ const play = require('./play')
 process.on('unhandledRejection', e => console.error('unhandledRejection:', e))
 process.on('uncaughtException', e => console.error('uncaughtException:', e))
 
-const FILES = {
-  'index.html': 'text/html; charset=utf-8',
-  'style.css': 'text/css; charset=utf-8',
-  'app.js': 'text/javascript; charset=utf-8'
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png'
 }
 
 http.createServer(async (req, res) => {
@@ -19,13 +21,19 @@ http.createServer(async (req, res) => {
     if (await wa.http(req, res)) return
     if (await play(req, res)) return
     if (await api(req, res)) return
-    const p = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html'
-    const type = FILES[p]
-    const file = path.join(__dirname, p)
-    if (!type || !fs.existsSync(file)) { res.writeHead(404); return res.end('No encontrado') }
-    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' })
-    fs.createReadStream(file).pipe(res)
+
+    let file = path.join(__dirname, req.url.split('?')[0] === '/' ? 'index.html' : req.url)
+    const ext = path.extname(file)
+    const type = MIME[ext] || 'application/octet-stream'
+
+    if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' })
+      fs.createReadStream(file).pipe(res)
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' })
+      res.end('404 Not Found')
+    }
   } catch (e) {
-    if (!res.headersSent) { res.writeHead(500); res.end('Error') }
+    if (!res.headersSent) { res.writeHead(500); res.end('Server Error') }
   }
-}).listen(process.env.PORT || 3000, () => console.log('YUTA Play v3 en marcha'))
+}).listen(process.env.PORT || 3000, () => console.log('🔥 [YUTA MASTER] Servidor activo en puerto 3000'))
