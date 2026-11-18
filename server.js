@@ -36,4 +36,4 @@ http.createServer(async (req, res) => {
   } catch (e) {
     if (!res.headersSent) { res.writeHead(500); res.end('Server Error') }
   }
-}).listen(process.env.PORT || 3000, () => console.log('🔥 [YUTA MASTER] Servidor activo en puerto 3000'))
+}).listen(process.env.PORT || 3000, () => console.log('🔥 [YUTA MASTER] Servidor y API activos en puerto 3000'))

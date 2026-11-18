@@ -4,65 +4,52 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#04060c">
-<title>YUTA Play · Bot de WhatsApp</title>
+<title>YUTA Play · Sistema API & WhatsApp</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="fx"></canvas>
-<header class="top"><div class="logo">YUTA<span>PLAY</span></div></header>
+<header class="top"><div class="logo">YUTA<span>API & STREAM</span></div></header>
 <main>
   <section class="view on">
     <div class="hero">
-      <svg class="art" viewBox="0 0 400 230" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <defs>
-          <radialGradient id="mn" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#cfe6ff"/><stop offset="1" stop-color="#7fc4ff" stop-opacity="0"/></radialGradient>
-          <linearGradient id="bl" x1="0" x2="1"><stop offset="0" stop-color="#5b6c8f"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#bfe0ff"/></linearGradient>
-          <filter id="gl"><feGaussianBlur stdDeviation="3"/></filter>
-        </defs>
-        <circle class="moon" cx="305" cy="70" r="74" fill="url(#mn)"/>
-        <circle cx="305" cy="70" r="34" fill="#eaf4ff"/>
-        <g class="aura" fill="none" stroke="#7fc4ff" stroke-linecap="round">
-          <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="3" filter="url(#gl)"/>
-          <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="1.2"/>
-        </g>
-        <g transform="rotate(-24 200 125)">
-          <rect x="14" y="117" width="78" height="9" rx="3" fill="#0a1020" stroke="#7fc4ff" stroke-width=".8"/>
-          <rect x="92" y="112" width="6" height="19" rx="2" fill="#7fc4ff"/>
-          <rect x="98" y="119" width="220" height="5" rx="2" fill="url(#bl)"/>
-          <polygon points="318,119 346,121.5 318,124" fill="#e8f4ff"/>
-        </g>
-      </svg>
       <div class="kj">呪</div>
       <div class="hero-t">
-        <h2>YUTA BOT</h2>
-        <p>Bot de WhatsApp: música, videos, grupos, anime y juegos.</p>
-        <div class="hbtns"><button id="go-link" class="btn fill rip">Vincular mi WhatsApp</button><button id="go-cmd" class="btn rip">Ver comandos</button></div>
+        <h2>YUTA SYSTEM API</h2>
+        <p>Streaming directo y descargas sin almacenamiento local en Render.</p>
+        <div class="hbtns">
+          <button id="go-link" class="btn fill rip">Vincular WhatsApp</button>
+          <button onclick="document.getElementById('api-section').scrollIntoView({behavior:'smooth'})" class="btn rip">API Directa</button>
+        </div>
       </div>
     </div>
 
-    <div id="link" class="rv">
+    <div id="link" class="rv card">
       <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
       <p class="note">Escribe tu número completo con código de país, sin el signo + ni espacios. Ej: 5493513157041</p>
       <form id="lf" class="s col">
         <input id="lp" type="tel" inputmode="numeric" placeholder="Ej: 5493513157041" autocomplete="off">
-        <input id="ln" type="text" maxlength="24" placeholder="Nombre de tu bot (opcional). Ej: GOKU" autocomplete="off">
-        <label class="file rip"><span id="lfn">Elegir banner del menú (opcional)</span><input id="lb" type="file" accept="image/*" hidden></label>
-        <img id="lprev" class="prev" alt="Vista previa del banner" hidden>
-        <button class="btn fill rip">Obtener código</button>
+        <input id="ln" type="text" maxlength="24" placeholder="Nombre de tu bot (opcional)" autocomplete="off">
+        <button class="btn fill rip">Obtener código de 8 dígitos</button>
       </form>
       <div id="lout"></div>
     </div>
 
-    <div class="card rv">
-      <h3>Cómo vincular</h3>
-      <p>1. Elige el nombre y el banner de tu bot (opcional) y toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.menu</b> en cualquier chat.<br>5. En un grupo, el bot empieza apagado: escribe <b>.bot on</b> para que los demás puedan usarlo.</p>
+    <!-- SECCIÓN DE PRUEBA DE LA API DE STREAM DIRECTO -->
+    <div id="api-section" class="card rv">
+      <h3 class="big">API de <span>Stream Directo</span></h3>
+      <p class="note">Prueba el streaming de audio m4a sin pasar por el disco del servidor:</p>
+      <div class="s col">
+        <input id="api-query" type="text" placeholder="Nombre de canción o ID de YouTube...">
+        <button onclick="probarApiStream()" class="btn fill rip">Obtener Enlace de Stream</button>
+      </div>
+      <div id="api-result" style="margin-top: 15px; word-break: break-all; font-size: 0.85rem;"></div>
     </div>
 
-    <div id="cmds" class="rv">
-      <h3 class="sec">Comandos</h3>
+    <div id="cmds" class="rv card">
+      <h3 class="sec">Comandos Activos</h3>
       <div id="cc" class="chips"></div>
-      <div id="cl" class="card"><p class="msg">Cargando…</p></div>
-      <p class="note">Prefijos: <b>.</b> y <b>,</b> — también responde a tu propia cuenta vinculada.</p>
+      <div id="cl"><p class="msg">Cargando comandos…</p></div>
     </div>
   </section>
 </main>
