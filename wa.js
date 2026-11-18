@@ -1,130 +1,210 @@
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore
-} = require('@whiskeysockets/baileys')
-const pino = require('pino')
 const fs = require('fs')
 const path = require('path')
+const pino = require('pino')
+const {
+  default: makeWASocket, useMultiFileAuthState, DisconnectReason,
+  fetchLatestBaileysVersion, Browsers
+} = require('@whiskeysockets/baileys')
+const cmd = require('./wacmd')
 
-let handler = null
-try { handler = require('./handler') } catch {}
+const DIR = path.join(__dirname, 'sessions')
+const MAX = Number(process.env.MAX_SESSIONS) || 2
+const PAIR_TTL = 3 * 60 * 1000
+const sessions = new Map()
+const byIp = new Map()
+const byPhone = new Map()
+fs.mkdirSync(DIR, { recursive: true })
 
-let sock = null
-let connectionStatus = 'disconnected'
-let connectedUser = null
-const SESSION_DIR = path.join(__dirname, 'session_yuta')
+const clean = n => String(n || '').replace(/\D/g, '')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const fail = (status, msg) => Object.assign(new Error(msg), { status })
+const wipe = phone => fs.rmSync(path.join(DIR, phone), { recursive: true, force: true })
 
-async function startBot() {
-  if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true })
-  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
+function throttle(sock) {
+  const raw = sock.sendMessage.bind(sock)
+  let chain = Promise.resolve()
+  sock.sendMessage = (jid, content = {}, opts) => {
+    const job = chain.then(async () => {
+      const media = content.audio || content.image || content.video || content.sticker
+      if (content.react || content.delete || media) await sleep(150 + Math.random() * 250)
+      else {
+        try {
+          await sock.sendPresenceUpdate('composing', jid)
+          const len = (content.text || '').length
+          await sleep(Math.min(1200, 250 + len * 5) + Math.random() * 300)
+          await sock.sendPresenceUpdate('paused', jid)
+        } catch {}
+      }
+      return Promise.race([
+        raw(jid, content, opts),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('el envío tardó demasiado')), 90000))
+      ])
+    })
+    chain = job.catch(() => {})
+    return job
+  }
+}
+
+function drop(phone, erase = true) {
+  const s = sessions.get(phone)
+  if (s) {
+    s.dead = true
+    clearTimeout(s.timer)
+    try { s.sock && s.sock.end(undefined) } catch {}
+    sessions.delete(phone)
+  }
+  if (erase) { wipe(phone); cmd.forget(phone) }
+}
+
+function reconnect(phone, s, quick) {
+  if (s.dead) return
+  s.retries = (s.retries || 0) + 1
+  if (s.retries > 8) return drop(phone, false)
+  const wait = quick ? 500 : Math.min(60000, 3000 * 2 ** s.retries)
+  setTimeout(() => { if (!s.dead) start(phone, false).catch(() => {}) }, wait)
+}
+
+async function start(phone, wantCode) {
+  const { state, saveCreds } = await useMultiFileAuthState(path.join(DIR, phone))
   const { version } = await fetchLatestBaileysVersion()
-
-  sock = makeWASocket({
-    version,
-    logger: pino({ level: 'silent' }),
-    printQRInTerminal: false,
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
-    },
-    browser: ['Ubuntu', 'Chrome', '20.0.04']
+  const sock = makeWASocket({
+    version, auth: state, logger: pino({ level: 'silent' }),
+    printQRInTerminal: false, browser: Browsers.ubuntu('Chrome'),
+    markOnlineOnConnect: false, syncFullHistory: false,
+    generateHighQualityLinkPreview: false,
+    shouldSyncHistoryMessage: () => false,
+    getMessage: async () => undefined
   })
+  throttle(sock)
+  cmd.attach(sock, phone)
+
+  const s = sessions.get(phone) || { retries: 0 }
+  s.sock = sock
+  s.state = sock.authState.creds.registered ? 'connecting' : 'pairing'
+  sessions.set(phone, s)
 
   sock.ev.on('creds.update', saveCreds)
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update
-    if (connection === 'connecting') {
-      connectionStatus = 'connecting'
-    } else if (connection === 'open') {
-      connectionStatus = 'connected'
-      connectedUser = sock.user ? sock.user.id.split(':')[0] : 'Conectado'
-      console.log('⚡ [BAILEYS] Conectado con éxito:', connectedUser)
-    } else if (connection === 'close') {
-      connectionStatus = 'disconnected'
-      connectedUser = null
-      const code = lastDisconnect?.error?.output?.statusCode
-      if (code === DisconnectReason.loggedOut) fs.rmSync(SESSION_DIR, { recursive: true, force: true })
-      if (code !== DisconnectReason.loggedOut) setTimeout(startBot, 4000)
+
+  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+    if (s.sock !== sock || s.dead) return
+    if (connection === 'open') {
+      s.state = 'open'; s.retries = 0; clearTimeout(s.timer)
+    }
+    if (connection === 'close') {
+      const code = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode
+      if (code === DisconnectReason.loggedOut) return drop(phone, true)
+      if (code === DisconnectReason.connectionReplaced) return drop(phone, false)
+      if (code === DisconnectReason.restartRequired) return reconnect(phone, s, true)
+      if (sock.authState.creds.registered) { s.state = 'connecting'; return reconnect(phone, s, false) }
     }
   })
 
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
-    for (const msg of messages) {
-      if (!msg.message) continue
-      if (handler && typeof handler === 'function') {
-        try { await handler(sock, msg) } catch (err) { console.error('Error handler:', err) }
-      }
+  sock.ev.on('messages.upsert', ({ messages, type }) => {
+    if (s.sock !== sock || s.dead) return
+    if (type !== 'notify' && type !== 'append') return
+    for (const m of messages) {
+      if (!m.message || m.key.remoteJid === 'status@broadcast') continue
+      const t = m.messageTimestamp
+      const ts = typeof t === 'object' ? (t && (t.toNumber ? t.toNumber() : t.low)) : Number(t)
+      if (ts && Date.now() / 1000 - ts > 45) continue
+      cmd.handle(sock, m, phone).catch(() => {})
     }
   })
-  return sock
+
+  let code = null
+  if (wantCode && !sock.authState.creds.registered) {
+    await sleep(2000)
+    code = await sock.requestPairingCode(phone)
+    s.timer = setTimeout(() => {
+      if (s.state !== 'open') drop(phone, true)
+    }, PAIR_TTL)
+  }
+  return code
 }
 
-startBot().catch(console.error)
-
-function readBody(req) {
-  return new Promise((resolve) => {
-    let data = ''
-    req.on('data', c => (data += c))
-    req.on('end', () => { try { resolve(JSON.parse(data || '{}')) } catch { resolve({}) } })
-  })
+function allow(ip, phone) {
+  const now = Date.now()
+  const arr = (byIp.get(ip) || []).filter(t => now - t < 10 * 60 * 1000)
+  if (arr.length >= 8) throw fail(429, 'Demasiados intentos. Espera unos minutos.')
+  arr.push(now); byIp.set(ip, arr); byPhone.set(phone, now)
 }
 
-const sendJson = (res, status, obj) => {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-  res.end(JSON.stringify(obj))
+function cleanPrefs(b) {
+  const name = cmd.cleanName(b.name)
+  let banner = null
+  if (typeof b.banner === 'string' && b.banner) {
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(b.banner)
+    if (m) banner = Buffer.from(m[1], 'base64')
+  }
+  return { name, banner }
 }
+
+async function link(rawPhone, ip, body) {
+  const phone = clean(rawPhone)
+  if (phone.length < 8 || phone.length > 15) throw fail(400, 'Escribe el número completo con código de país, sin + ni espacios.')
+  const prefs = cleanPrefs(body || {})
+  const ex = sessions.get(phone)
+  if (ex && ex.state === 'open') return { state: 'open' }
+  if (ex && ex.sock && ex.sock.authState.creds.registered) return { state: ex.state }
+  allow(ip, phone)
+  if (ex) drop(phone, true)
+  wipe(phone)
+  cmd.forget(phone)
+  try {
+    const code = await start(phone, true)
+    if (!code) throw new Error('sin código')
+    cmd.setPrefs(phone, prefs)
+    return { state: 'pairing', code: code.match(/.{1,4}/g).join('-') }
+  } catch (e) {
+    drop(phone, true)
+    throw fail(502, 'No pude generar el código. Revisa el número e intenta en un minuto.')
+  }
+}
+
+const readBody = req => new Promise((resolve, reject) => {
+  let b = ''
+  req.on('data', d => { b += d; if (b.length > 450000) { reject(fail(413, 'Solicitud muy grande')); req.destroy() } })
+  req.on('end', () => resolve(b))
+  req.on('error', reject)
+})
 
 async function http(req, res) {
-  const u = new URL(req.url, 'http://localhost')
-  const p = u.pathname
-
-  if (p === '/api/status' && req.method === 'GET') {
-    sendJson(res, 200, { status: connectionStatus, user: connectedUser })
-    return true
+  const u = new URL(req.url, 'http://x')
+  if (!u.pathname.startsWith('/api/wa/')) return false
+  const send = (code, obj) => {
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end(JSON.stringify(obj))
   }
-
-  if (p === '/api/pair' && req.method === 'POST') {
-    const body = await readBody(req)
-    // Limpieza estricta: solo números, sin signo + ni espacios
-    const rawNumber = String(body.number || '').replace(/[^0-9]/g, '')
-
-    if (!rawNumber || rawNumber.length < 10) {
-      sendJson(res, 400, { ok: false, error: 'Número inválido. Usa formato sin +, ej: 5493513157041' })
-      return true
-    }
-
-    try {
-      if (connectionStatus === 'connected') {
-        sendJson(res, 200, { ok: true, alreadyConnected: true, user: connectedUser })
-        return true
-      }
-      if (!sock) await startBot()
-      await new Promise(r => setTimeout(r, 2000))
-
-      const code = await sock.requestPairingCode(rawNumber)
-      const formatted = code?.match(/.{1,4}/g)?.join('-') || code
-      sendJson(res, 200, { ok: true, code: formatted })
-    } catch (e) {
-      sendJson(res, 500, { ok: false, error: 'Error al generar código en WhatsApp. Intenta de nuevo.' })
-    }
-    return true
+  try {
+    if (u.pathname === '/api/wa/link' && req.method === 'POST') {
+      let body = {}
+      try { body = JSON.parse((await readBody(req)) || '{}') } catch { throw fail(400, 'Solicitud inválida') }
+      const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim()
+      send(200, await link(body.phone, ip, body))
+    } else if (u.pathname === '/api/wa/status') {
+      const s = sessions.get(clean(u.searchParams.get('phone')))
+      send(200, { state: s ? s.state : 'none', used: sessions.size, max: MAX })
+    } else if (u.pathname === '/api/wa/commands') {
+      send(200, { commands: cmd.list() })
+    } else send(404, { error: 'No existe' })
+  } catch (e) {
+    send(e.status || 500, { error: e.message })
   }
-
-  if (p === '/api/logout' && req.method === 'POST') {
-    try { if (sock) await sock.logout() } catch {}
-    fs.rmSync(SESSION_DIR, { recursive: true, force: true })
-    connectionStatus = 'disconnected'
-    connectedUser = null
-    setTimeout(startBot, 2000)
-    sendJson(res, 200, { ok: true })
-    return true
-  }
-
-  return false
+  return true
 }
 
-module.exports = { http, getSock: () => sock }
+function boot() {
+  let dirs = []
+  try { dirs = fs.readdirSync(DIR).filter(d => /^\d{8,15}$/.test(d)) } catch {}
+  dirs.slice(0, MAX).forEach((p, i) => setTimeout(() => {
+    try {
+      const creds = JSON.parse(fs.readFileSync(path.join(DIR, p, 'creds.json'), 'utf8'))
+      if (!creds.registered) return wipe(p)
+    } catch { return wipe(p) }
+    sessions.set(p, { retries: 0 })
+    start(p, false).catch(() => {})
+  }, 3000 + i * 4000))
+}
+setTimeout(boot, 2500)
+
+module.exports = { http, boot }

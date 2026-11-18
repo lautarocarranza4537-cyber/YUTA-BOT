@@ -17,14 +17,14 @@ document.addEventListener('pointerdown',e=>{
   const rm=matchMedia('(prefers-reduced-motion:reduce)').matches;
   function rs(){w=c.width=innerWidth;h=c.height=innerHeight}
   rs();addEventListener('resize',rs);
-  for(let i=0;i<(rm?0:40);i++)P.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*2+.5,v:Math.random()*.5+.15,a:Math.random()*6.283});
+  for(let i=0;i<(rm?0:45);i++)P.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*2+.6,v:Math.random()*.5+.15,a:Math.random()*6.283});
   function t(){
     x.clearRect(0,0,w,h);
     for(const p of P){
       p.y-=p.v;p.a+=.01;p.x+=Math.sin(p.a)*.4;
       if(p.y<-5){p.y=h+5;p.x=Math.random()*w}
-      x.beginPath();x.fillStyle='rgba(127,196,255,'+(.15+.35*Math.abs(Math.sin(p.a)))+')';
-      x.shadowBlur=10;x.shadowColor='#7fc4ff';x.arc(p.x,p.y,p.r,0,6.283);x.fill();
+      x.beginPath();x.fillStyle='rgba(56,189,248,'+(.2+.4*Math.abs(Math.sin(p.a)))+')';
+      x.shadowBlur=12;x.shadowColor='#38bdf8';x.arc(p.x,p.y,p.r,0,6.283);x.fill();
     }
     if(!document.hidden)requestAnimationFrame(t);else setTimeout(t,600);
   }
@@ -39,7 +39,6 @@ function chips(el,arr,cur,fn){
 $('go-link').onclick=()=>$('link').scrollIntoView({behavior:'smooth',block:'start'});
 $('go-cmd').onclick=()=>$('cmds').scrollIntoView({behavior:'smooth',block:'start'});
 
-/* banner: se achica en el navegador antes de enviarse */
 let bannerData='';
 function shrink(file){
   return new Promise(function(res,rej){
@@ -69,7 +68,6 @@ $('lb').onchange=function(){
   }).catch(function(){toast('No pude leer esa imagen')});
 };
 
-/* vinculación */
 (function(){
   let timer=null,cur='';
   const out=$('lout');
@@ -78,7 +76,7 @@ $('lb').onchange=function(){
   async function poll(){
     try{
       const j=await (await fetch('/api/wa/status?phone='+cur)).json();
-      if(j.state==='open'){stop();show('<div class="wok">✅ ¡Vinculado! Escribe <b>.menu</b> en cualquier chat de WhatsApp. En un grupo, escribe <b>.bot on</b> para que los demás puedan usarlo.</div>')}
+      if(j.state==='open'){stop();show('<div class="wok">✅ ¡Vinculado correctamente! Escribe <b>.menu</b> en cualquier chat de WhatsApp. En un grupo, escribe <b>.bot on</b> para que los demás puedan usarlo.</div>')}
       else if(j.state==='none'){stop();show('<p class="msg">El código venció. Pide uno nuevo.</p>')}
     }catch(e){}
   }
@@ -91,12 +89,12 @@ $('lb').onchange=function(){
       const r=await fetch('/api/wa/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone,name:$('ln').value,banner:bannerData})});
       const j=await r.json().catch(function(){return {}});
       if(!r.ok)throw new Error(j.error||'No se pudo generar el código');
-      if(j.state==='open'){show('<div class="wok">✅ Este número ya está vinculado. Para cambiar el nombre o el banner usa <b>.botname</b> y <b>.setbanner</b> en WhatsApp.</div>');return}
+      if(j.state==='open'){show('<div class="wok">✅ Este número ya está vinculado.</div>');return}
       if(j.state==='connecting'){show('<p class="msg">Este número ya estaba vinculado y se está reconectando. Espera un momento.</p>');timer=setInterval(poll,3000);return}
-      show('<p class="note">Tu código de vinculación:</p><div class="wcode">'+esc(j.code)+'</div><button type="button" id="lcopy" class="btn rip">Copiar código</button><p class="note" style="margin-top:10px">Escríbelo en WhatsApp. Vence en unos 3 minutos. Esperando vinculación…</p>');
+      show('<p class="note">Tu código de vinculación:</p><div class="wcode">'+esc(j.code)+'</div><button type="button" id="lcopy" class="btn fill rip" style="width:100%">Copiar código</button><p class="note" style="margin-top:12px;text-align:center">Escríbelo en WhatsApp. Vence en 3 minutos.</p>');
       $('lcopy').onclick=function(){
-        const t=j.code.replace('-','');
-        if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){toast('Código copiado')},function(){toast('Copia el código a mano')});
+        const t=j.code.replace(/-/g,'');
+        if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){toast('¡Código copiado!')},function(){toast('Copia el código a mano')});
         else toast('Copia el código a mano');
       };
       timer=setInterval(poll,3000);
@@ -104,7 +102,6 @@ $('lb').onchange=function(){
   };
 })();
 
-/* comandos (se leen del propio bot) */
 let ALL=[];
 function drawCmds(cat){
   const l=ALL.filter(c=>!cat||c.cat===cat);
@@ -117,7 +114,7 @@ function drawCmds(cat){
   try{
     const j=await (await fetch('/api/wa/commands')).json();
     ALL=j.commands||[];
-    const order=['General','Música','Descargas','Convertir','Buscar','IA','Economía','Grupo','Anime','Juegos','Herramientas','Owner'];
+    const order=['General','Música','Descargas','Grupo','Anime','Juegos','Herramientas','Owner'];
     const cats=order.filter(o=>ALL.some(c=>c.cat===o));
     chips($('cc'),[['Todos','']].concat(cats.map(c=>[c,c])),'',drawCmds);
     drawCmds('');
