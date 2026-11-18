@@ -1,16 +1,7 @@
 const { spawn } = require('child_process')
 const { Readable } = require('stream')
-const C = require('./core') || {}
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-// Múltiples clientes de YouTube anti-bloqueo y respaldos robustos
-const IT_CLIENTS = [
-  { name: 'android', id: 3, ua: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip', ctx: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, osName: 'Android', osVersion: '11', hl: 'en', gl: 'US' } },
-  { name: 'ios', id: 5, ua: 'com.google.ios.youtube/19.09.4 (iPhone14,3; U; CPU iOS 17_4 like Mac OS X)', ctx: { clientName: 'IOS', clientVersion: '19.09.4', deviceMake: 'Apple', deviceModel: 'iPhone14,3', osName: 'iPhone', osVersion: '17.4', hl: 'en', gl: 'US' } },
-  { name: 'web', id: 1, ua: UA, ctx: { clientName: 'WEB', clientVersion: '2.20240314.05.00', hl: 'en', gl: 'US' } }
-]
-
-// Extraer metadatos y stream directo resistente a bloqueos
 async function getAudioMetadataAndStream(queryOrUrl) {
   let videoId = ''
   if (/^[\w-]{11}$/.test(queryOrUrl)) {
@@ -20,10 +11,8 @@ async function getAudioMetadataAndStream(queryOrUrl) {
     videoId = match ? match[1] : null
   }
 
-  // Si es búsqueda por texto, resolvemos con yt-search interno o dlp
   let targetUrl = videoId ? `https://youtu.be/${videoId}` : `ytsearch1:${queryOrUrl}`
 
-  // Usar yt-dlp con argumentos avanzados anti-bloqueo para extraer metadatos y enlace m4a directo
   return new Promise((resolve, reject) => {
     const args = [
       '--no-playlist', '--no-warnings', '-j',
@@ -43,7 +32,6 @@ async function getAudioMetadataAndStream(queryOrUrl) {
       try {
         const info = JSON.parse(out.trim().split('\n')[0])
         const formats = info.formats || []
-        // Buscar el mejor audio m4a (itag 140 o superior)
         const audioFormat = formats.filter(f => f.acodec !== 'none' && f.vcodec === 'none').sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0] || info
 
         resolve({
@@ -54,7 +42,7 @@ async function getAudioMetadataAndStream(queryOrUrl) {
           likes: info.like_count ? Number(info.like_count).toLocaleString() : 'No disponible',
           year: info.upload_date ? info.upload_date.slice(0, 4) : 'Desconocido',
           thumbnail: info.thumbnail || '',
-          url: targetUrl,
+          url: `https://youtu.be/${info.id}`,
           directAudioUrl: audioFormat.url || info.url
         })
       } catch (e) {
@@ -64,7 +52,6 @@ async function getAudioMetadataAndStream(queryOrUrl) {
   })
 }
 
-// Descargar buffer m4a directamente en memoria sin usar almacenamiento de Render
 async function downloadBuffer(url) {
   const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' })
   if (!res.ok) throw new Error('Error al descargar el flujo de audio')
@@ -74,7 +61,6 @@ async function downloadBuffer(url) {
   return buf
 }
 
-// Servidor API para stream directo web
 module.exports = async (req, res) => {
   const u = new URL(req.url, 'http://x')
   if (u.pathname !== '/api/stream' && u.pathname !== '/api/audio') return false

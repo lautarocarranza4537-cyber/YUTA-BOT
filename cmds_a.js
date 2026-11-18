@@ -2,12 +2,10 @@ const fs = require('fs')
 const play = require('./play')
 const fast = require('./fast')
 const social = require('./social')
-const fmt = require('./fmt')
-const yt = require('./yt')
-const thumb = require('./thumb')
 
 const FORMAT = (process.env.AUDIO_FORMAT || 'mp3').toLowerCase()
 const MAX_MIN = 12
+const YT = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|music\.youtube\.com\/watch\?v=)([\w-]{11})/i
 
 module.exports = H => {
   const { add, commands, ORDER, num, durSec, uptime, norm, botName, bannerFile, enqueue, pending, convert, toMp3, nekos, SITE } = H
@@ -45,10 +43,25 @@ module.exports = H => {
     else await c.reply(t, [c.sender])
   })
 
+  // OWNER CON TARJETA DE CONTACTO EMPRESARIAL L9KAS
   add(['owner', 'creador', 'dueno'], 'General', 'Contacto del creador', async c => {
-    const vcard = 'BEGIN:VCARD\nVERSION:3.0\nFN:L9kas|owner\nORG:L9kas|owner;\nTEL;type=CELL;type=VOICE;waid=5493513157041:+54 9 351 315 7041\nEND:VCARD'
-    await c.sock.sendMessage(c.chat, { contacts: { displayName: 'L9kas|owner', contacts: [{ vcard }] } }, { quoted: c.m })
+    const vcard = 'BEGIN:VCARD\n' +
+      'VERSION:3.0\n' +
+      'FN:L9kas | owner\n' +
+      'ORG:L9kas Enterprise;\n' +
+      'TEL;type=CELL;type=VOICE;waid=5493513157041:+54 9 351 315 7041\n' +
+      'END:VCARD'
+
+    await c.sock.sendMessage(c.chat, {
+      contacts: {
+        displayName: 'L9kas | owner',
+        contacts: [{ vcard }]
+      }
+    }, { quoted: c.m })
+
+    await c.reply(',_ L9kas | owner _\n\n_Ver contacto arriba._\n_Ver empresa: L9kas Enterprise_')
   })
+
   add(['ping', 'speed'], 'General', 'Comprueba que el bot responde', async c => {
     const t = Date.now()
     await c.reply('🏓 Pong!')
@@ -60,55 +73,66 @@ module.exports = H => {
     await c.reply('🤖 *' + botName(c.phone) + '*\n⏱️ Activo: ' + uptime() + '\n💾 Memoria: ' + mem.toFixed(0) + ' MB\n🟢 Node ' + process.version + '\n🌐 ' + SITE)
   })
 
-  // ───── música ─────
-  add(['play', 'musica', 'p'], 'Música', 'Descarga una canción en audio (máx 30 MB)', { usage: '<nombre o link>', heavy: true }, async c => {
+  // ───── música y .play con metadatos y reacciones ─────
+  add(['play', 'musica', 'p'], 'Música', 'Descarga una canción en audio', { usage: '<nombre o link>', heavy: true }, async c => {
     const q = c.text
-    if (!q) return c.reply('Uso: `' + c.prefix + 'play` _nombre de la canción o link de YouTube_\nEj: `' + c.prefix + 'play montagem apollo`')
+    if (!q) return c.reply('Uso: `' + c.prefix + 'play` _nombre de la canción o link de YouTube / YT Music_\nEj: `' + c.prefix + 'play montagem apollo`')
     if (pending() >= 3) return c.reply('⏳ Hay muchas descargas ahora mismo. Intenta en un momento.')
     if (pending() > 0) await c.reply('⏳ Estás en cola, ya empiezo.')
-    await c.sock.sendMessage(c.chat, { react: { text: '🔎', key: c.m.key } }).catch(() => {})
+
+    // Reacción inicial de búsqueda
+    await c.sock.sendMessage(c.chat, { react: { text: '⏳', key: c.m.key } }).catch(() => {})
+
     try {
       await enqueue(async () => {
         const t0 = Date.now()
-        const item = await fast.find(q, 'audio')
-        if (!item) return c.reply('❌ No encontré esa canción. Prueba con otro nombre.')
-        if (durSec(item.dur) > MAX_MIN * 60) return c.reply('❌ Esa canción es muy larga (máx ' + MAX_MIN + ' min).')
-        const t1 = Date.now()
-        const ytId = item.u ? null : item.id
-        const det = ytId ? yt.details(ytId).catch(() => null) : Promise.resolve(null)
-        const link = item.u || 'https://youtu.be/' + item.id
-        const card = (async () => {
-          const d = await det
-          const cap = fmt.card({
-            icon: '🎧', title: (d && d.title) || item.title, by: (d && d.by) || item.by,
-            dur: (d && d.seconds) || item.dur, views: d && d.views, link, date: d && d.date,
-            note: '⏳ _Descargando el audio..._'
-          })
-          const img = await thumb.best(item, ytId).catch(() => null)
-          try { await c.sock.sendMessage(c.chat, img ? { image: img, caption: cap } : { text: cap }, { quoted: c.m }) } catch { await c.reply(cap) }
-          return d
-        })()
-        const a = await play.audio(item.u ? '' : item.id, item.u || '', item.title)
-        const t2 = Date.now()
-        let out = a.buf, mime = 'audio/mpeg', ext = 'mp3'
-        if (FORMAT === 'm4a' && !/mpeg|mp3/i.test(a.ct)) { mime = 'audio/mp4'; ext = 'm4a' }
-        else if (!/mpeg|mp3/i.test(a.ct)) {
-          try { out = await toMp3(a.buf) } catch (e) { console.log('⚠ sin conversión a mp3:', e.message); mime = 'audio/mp4'; ext = 'm4a' }
+        const meta = await play.getAudioMetadataAndStream(q)
+        if (!meta) return c.reply('❌ No encontré esa canción. Prueba con otro nombre.')
+
+        // Reacción de descarga de audio
+        await c.sock.sendMessage(c.chat, { react: { text: '📥', key: c.m.key } }).catch(() => {})
+
+        const infoText = `,_ AUDIO ENCONTRADO _,
+        
+*[Nombre]*: ${meta.title}
+*[Canal]*: ${meta.channel}
+*[Vistas]*: ${meta.views}
+*[Likes]*: ${meta.likes}
+*[Año]*: ${meta.year}
+*[Link]*: ${meta.url}`;
+
+        // Enviar imagen en buena calidad con los detalles solicitados
+        await c.sock.sendMessage(c.chat, {
+          image: { url: meta.thumbnail },
+          caption: infoText
+        }, { quoted: c.m })
+
+        const audioBuffer = await play.downloadBuffer(meta.directAudioUrl)
+        let out = audioBuffer, mime = 'audio/mpeg', ext = 'mp3'
+
+        if (FORMAT === 'm4a') {
+          mime = 'audio/mp4'
+          ext = 'm4a'
+        } else {
+          try { out = await toMp3(audioBuffer) } catch { mime = 'audio/mp4'; ext = 'm4a' }
         }
-        const t3 = Date.now()
-        const d = await card
-        const name = (((d && d.title) || item.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 80)) || 'audio'
-        await c.sock.sendMessage(c.chat, { audio: out, mimetype: mime, fileName: name + '.' + ext }, { quoted: c.m })
-        await c.sock.sendMessage(c.chat, { react: { text: '✅', key: c.m.key } }).catch(() => {})
-        console.log('⏱ búsqueda ' + (t1 - t0) + ' ms | descarga ' + (t2 - t1) + ' ms | conversión ' + (t3 - t2) + ' ms | envío ' + (Date.now() - t3) + ' ms | total ' + (Date.now() - t0) + ' ms')
+
+        const fname = ((meta.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 80) || 'audio') + '.' + ext
+
+        // Reacción final completada
+        await c.sock.sendMessage(c.chat, { react: { text: '🎵', key: c.m.key } }).catch(() => {})
+
+        await c.sock.sendMessage(c.chat, { audio: out, mimetype: mime, fileName: fname }, { quoted: c.m })
+        console.log('⏱ play completo en ' + (Date.now() - t0) + ' ms')
       })
     } catch (e) {
       console.log('PLAY ERROR:', e.message)
+      await c.sock.sendMessage(c.chat, { react: { text: '❌', key: c.m.key } }).catch(() => {})
       await c.reply('❌ ' + String(e.message || 'No pude descargar el audio').slice(0, 200)).catch(() => {})
     }
   })
 
-  // ───── videos de TikTok, Instagram y Facebook ─────
+  // ───── descargas de video: TikTok, Instagram, Facebook ─────
   function dl(kind, names, label, example) {
     add(names, 'Descargas', 'Descarga un video de ' + label, { usage: '<link>', heavy: true }, async c => {
       const q = c.ctx && c.ctx.quotedMessage
@@ -127,13 +151,11 @@ module.exports = H => {
             try { buf = await convert(buf, 'bin', 'mp4', ['-c:v', 'libx264', '-preset', 'veryfast', '-c:a', 'aac', '-movflags', 'faststart'], 120000) }
             catch { throw new Error('El video no está en un formato compatible.') }
           }
-          const cap = fmt.card({ icon: '🎬', title: v.title || label, by: v.by, dur: v.dur, views: v.views, link: url, date: v.date })
+          const cap = '🎬 ' + (v.title ? v.title.slice(0, 150) : label) + (v.by ? '\n👤 ' + v.by : '')
           await c.sock.sendMessage(c.chat, { video: buf, mimetype: 'video/mp4', caption: cap }, { quoted: c.m })
           await c.sock.sendMessage(c.chat, { react: { text: '✅', key: c.m.key } }).catch(() => {})
-          console.log('⏱ ' + kind + ' (' + v.via + ') ' + (Date.now() - t0) + ' ms | ' + (buf.length / 1048576).toFixed(1) + ' MB')
         })
       } catch (e) {
-        console.log('DL ERROR', kind, e.message)
         await c.reply('❌ ' + social.friendly(kind, e)).catch(() => {})
       }
     })

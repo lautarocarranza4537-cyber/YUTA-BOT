@@ -1,275 +1,72 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YUTA BOT — 乙骨 憂太 | Professional System</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04060c">
+<title>YUTA Play · Bot de WhatsApp</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="cinematic-intro" id="cinematic-intro">
-        <div class="intro-kanji">乙骨 憂太</div>
-        <div class="intro-sub">SPECIAL GRADE SYSTEM INITIALIZING...</div>
+<canvas id="fx"></canvas>
+<header class="top"><div class="logo">YUTA<span>PLAY</span></div></header>
+<main>
+  <section class="view on">
+    <div class="hero">
+      <svg class="art" viewBox="0 0 400 230" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <radialGradient id="mn" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#cfe6ff"/><stop offset="1" stop-color="#7fc4ff" stop-opacity="0"/></radialGradient>
+          <linearGradient id="bl" x1="0" x2="1"><stop offset="0" stop-color="#5b6c8f"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#bfe0ff"/></linearGradient>
+          <filter id="gl"><feGaussianBlur stdDeviation="3"/></filter>
+        </defs>
+        <circle class="moon" cx="305" cy="70" r="74" fill="url(#mn)"/>
+        <circle cx="305" cy="70" r="34" fill="#eaf4ff"/>
+        <g class="aura" fill="none" stroke="#7fc4ff" stroke-linecap="round">
+          <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="3" filter="url(#gl)"/>
+          <path d="M-10 190 C80 120 140 230 230 160 S360 120 420 170" stroke-width="1.2"/>
+        </g>
+        <g transform="rotate(-24 200 125)">
+          <rect x="14" y="117" width="78" height="9" rx="3" fill="#0a1020" stroke="#7fc4ff" stroke-width=".8"/>
+          <rect x="92" y="112" width="6" height="19" rx="2" fill="#7fc4ff"/>
+          <rect x="98" y="119" width="220" height="5" rx="2" fill="url(#bl)"/>
+          <polygon points="318,119 346,121.5 318,124" fill="#e8f4ff"/>
+        </g>
+      </svg>
+      <div class="kj">呪</div>
+      <div class="hero-t">
+        <h2>YUTA BOT</h2>
+        <p>Bot de WhatsApp: música, videos, grupos, anime y juegos.</p>
+        <div class="hbtns"><button id="go-link" class="btn fill rip">Vincular mi WhatsApp</button><button id="go-cmd" class="btn rip">Ver comandos</button></div>
+      </div>
     </div>
 
-    <canvas id="pixel-canvas"></canvas>
-    <div class="manga-bg"></div>
-    <div class="halftone-overlay"></div>
-    <div class="kanji-watermark">乙骨憂太</div>
-
-    <header>
-        <div style="font-weight: 900; letter-spacing: 2px; font-size: 0.9rem;">YUTA PLAY <span style="color:var(--accent-purple);">// 乙骨</span></div>
-        <div style="font-size: 0.75rem; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 6px;">
-            <div id="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></div>
-            <span id="status-text">Desconectado</span>
-        </div>
-    </header>
-
-    <div class="container">
-        <div class="hero-card">
-            <div style="font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; padding: 3px 10px; border-radius: 6px; background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.5); color: #c4b5fd; display: inline-block; margin-bottom: 0.8rem;">SPECIAL GRADE • 乙骨 憂太</div>
-            <h1 style="font-size: 2.1rem; font-weight: 950; letter-spacing: 1px; margin-bottom: 0.5rem; background: linear-gradient(90deg, #fff, #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">YUTA BOT</h1>
-            <p style="font-size: 0.88rem; color: #94a3b8; line-height: 1.45; margin-bottom: 1.5rem;">Bot oficial de WhatsApp: streaming de música, descargas Pinterest HD, anime y gestión total de grupos.</p>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="abrirVinculacion()" class="btn-cursed" style="flex: 1;">⚡ Vincular WhatsApp</button>
-                <button onclick="document.getElementById('seccion-cmds').scrollIntoView({behavior:'smooth'})" style="padding: 13px 18px; border-radius: 12px; font-weight: 800; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;">Comandos</button>
-            </div>
-        </div>
-
-        <div id="panel-vincular" class="panel-box" style="display: none;">
-            <div style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.35rem;">Vinculación por <span style="color:var(--accent-cyan);">WhatsApp (8 Dígitos)</span></div>
-            <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.1rem;">Escribe tu número completo con código de país, <b>sin el signo + ni espacios</b>.</div>
-
-            <!-- Placeholder exacto sin el signo + -->
-            <input type="tel" id="wa-number" class="input-dark" placeholder="Ej: 5493513157041">
-            <button id="btn-get-code" onclick="solicitarCodigo8Digitos()" class="btn-cursed" style="width: 100%;">Obtener código de 8 dígitos</button>
-            
-            <div id="pair-error" style="color: #ef4444; font-size: 0.82rem; font-weight: 700; margin-top: 10px; text-align: center;"></div>
-
-            <div id="pairing-result" style="display: none; margin-top: 1.2rem; padding: 1.2rem; border-radius: 14px; background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(56,189,248,0.12)); border: 1.5px solid rgba(139,92,246,0.6); text-align: center;">
-                <div style="font-size: 0.78rem; color: #c4b5fd; font-weight: 700; letter-spacing: 1px;">TU CÓDIGO DE VINCULACIÓN</div>
-                <div id="pairing-digits" style="font-family: monospace; font-size: 2rem; font-weight: 900; letter-spacing: 4px; color: #fff; text-shadow: 0 0 15px rgba(139,92,246,0.8); margin: 10px 0;">---- - ----</div>
-                <button onclick="copiarCodigo()" style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 7px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer;">📋 Copiar código</button>
-            </div>
-
-            <div id="connected-box" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.4); text-align: center;">
-                <div style="color: #4ade80; font-weight: 800; font-size: 0.95rem;">✅ ¡WhatsApp Vinculado Correctamente!</div>
-                <div id="connected-num" style="font-size: 0.8rem; color: #cbd5e1; margin: 4px 0 10px;"></div>
-                <button onclick="cerrarSesionWA()" style="background: rgba(255,255,255,0.1); color: #fff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 0.75rem; cursor: pointer;">Desvincular sesión</button>
-            </div>
-        </div>
-
-        <div id="seccion-cmds" style="margin-top: 2rem;">
-            <div style="font-size: 0.85rem; font-weight: 900; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 0.7rem; text-transform: uppercase;">COMANDOS DISPONIBLES</div>
-            
-            <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 0.8rem; scrollbar-width: none;">
-                <button class="chip active" onclick="filtrarCmd('todos', this)">Todos</button>
-                <button class="chip" onclick="filtrarCmd('general', this)">General</button>
-                <button class="chip" onclick="filtrarCmd('musica', this)">Música</button>
-                <button class="chip" onclick="filtrarCmd('descargas', this)">Descargas</button>
-                <button class="chip" onclick="filtrarCmd('grupo', this)">Grupo</button>
-            </div>
-
-            <div id="lista-comandos">
-                <div class="cmd-item" data-cat="general">
-                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.menu</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Muestra el panel interactivo estilizado con formato épico.</div>
-                </div>
-                <div class="cmd-item" data-cat="general">
-                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.owner</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Envía la vCard corporativa empresarial de L9kas.</div>
-                </div>
-                <div class="cmd-item" data-cat="musica">
-                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.play &lt;canción o link&gt;</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Busca, reacciona y envía miniatura con metadatos y audio m4a directo.</div>
-                </div>
-                <div class="cmd-item" data-cat="musica">
-                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.playaudio &lt;canción&gt;</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Envía la canción en formato de nota de voz de WhatsApp.</div>
-                </div>
-                <div class="cmd-item" data-cat="descargas">
-                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.pin / .pinvideo</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Busca y descarga imágenes o videos de Pinterest con reacciones.</div>
-                </div>
-                <div class="cmd-item" data-cat="grupo">
-                    <div style="font-family: monospace; font-weight: 800; color: var(--accent-cyan); font-size: 0.95rem;">.bot on / off</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 3px;">Enciende o apaga el bot en chats grupales.</div>
-                </div>
-            </div>
-        </div>
+    <div id="link" class="rv">
+      <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
+      <p class="note">Escribe tu número completo con código de país, sin el signo + ni espacios. Ej: 5493513157041</p>
+      <form id="lf" class="s col">
+        <input id="lp" type="tel" inputmode="numeric" placeholder="Ej: 5493513157041" autocomplete="off">
+        <input id="ln" type="text" maxlength="24" placeholder="Nombre de tu bot (opcional). Ej: GOKU" autocomplete="off">
+        <label class="file rip"><span id="lfn">Elegir banner del menú (opcional)</span><input id="lb" type="file" accept="image/*" hidden></label>
+        <img id="lprev" class="prev" alt="Vista previa del banner" hidden>
+        <button class="btn fill rip">Obtener código</button>
+      </form>
+      <div id="lout"></div>
     </div>
 
-    <div id="modal-token" class="modal-backdrop">
-        <div class="modal-box">
-            <div style="font-size: 1.8rem; margin-bottom: 6px;">🔒</div>
-            <h3 style="font-size: 1.35rem; font-weight: 900; margin-bottom: 0.4rem;">Ingresar token</h3>
-            <p style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 1.2rem;">Introduce tu token autorizado para acceder a la vinculación.</p>
-            <input type="text" id="token-input" class="input-dark" placeholder="Escribe tu token aquí...">
-            <button onclick="verificarToken()" class="btn-cursed" style="width: 100%;">Validar token</button>
-            <div id="token-error" style="color: #ef4444; font-size: 0.82rem; font-weight: 700; margin-top: 10px; min-height: 18px;"></div>
-            <button onclick="document.getElementById('modal-token').classList.remove('open')" style="background: transparent; color: #94a3b8; border: none; margin-top: 10px; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
-        </div>
+    <div class="card rv">
+      <h3>Cómo vincular</h3>
+      <p>1. Elige el nombre y el banner de tu bot (opcional) y toca <b>Obtener código</b>.<br>2. En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.<br>3. Elige <b>Vincular con número de teléfono</b> y escribe el código.<br>4. Cuando esta página diga Vinculado, escribe <b>.menu</b> en cualquier chat.<br>5. En un grupo, el bot empieza apagado: escribe <b>.bot on</b> para que los demás puedan usarlo.</p>
     </div>
 
-    <script>
-        const canvas = document.getElementById('pixel-canvas');
-        const ctx = canvas.getContext('2d');
-        let width, height, particles = [];
-
-        function resize() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        for (let i = 0; i < 85; i++) {
-            particles.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                size: Math.random() * 2.8 + 1,
-                speedY: Math.random() * 0.7 + 0.2,
-                opacity: Math.random() * 0.75 + 0.2
-            });
-        }
-
-        function animatePixels() {
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = 'rgba(139, 92, 246, 0.65)';
-            particles.forEach(p => {
-                p.y -= p.speedY + (window.scrollY * 0.0025);
-                if (p.y < 0) p.y = height;
-                ctx.globalAlpha = p.opacity;
-                ctx.fillRect(p.x, p.y, p.size, p.size);
-            });
-            requestAnimationFrame(animatePixels);
-        }
-        animatePixels();
-
-        const TOKENS_VALIDOS = [
-            "MIAKHALIFAPRIME", "Jonathan2026", "Jon67y89", "año2027",
-            "botpremium27", "chambeador247", "abeduldecacao24", 
-            "bondiolasigma67", "Yutaplay", "Mipansususu67"
-        ];
-        let codigoActual = '';
-
-        async function actualizarEstado() {
-            try {
-                const r = await fetch('/api/status');
-                const data = await r.json();
-                const dot = document.getElementById('status-dot');
-                const txt = document.getElementById('status-text');
-                const connBox = document.getElementById('connected-box');
-                const pairRes = document.getElementById('pairing-result');
-
-                if (data.status === 'connected') {
-                    dot.style.background = '#22c55e';
-                    dot.style.boxShadow = '0 0 10px #22c55e';
-                    txt.textContent = 'Conectado';
-                    if (connBox) {
-                        connBox.style.display = 'block';
-                        document.getElementById('connected-num').textContent = 'Número activo: +' + (data.user || '');
-                    }
-                    if (pairRes) pairRes.style.display = 'none';
-                } else {
-                    dot.style.background = '#ef4444';
-                    dot.style.boxShadow = '0 0 8px #ef4444';
-                    txt.textContent = data.status === 'connecting' ? 'Conectando...' : 'Desconectado';
-                    if (connBox) connBox.style.display = 'none';
-                }
-            } catch {}
-        }
-        setInterval(actualizarEstado, 4000);
-        actualizarEstado();
-
-        function abrirVinculacion() {
-            const saved = localStorage.getItem('yuta_token_auth');
-            if (saved && TOKENS_VALIDOS.includes(saved)) {
-                desbloquearPanel();
-            } else {
-                document.getElementById('modal-token').classList.add('open');
-            }
-        }
-
-        function verificarToken() {
-            const val = document.getElementById('token-input').value.trim();
-            const err = document.getElementById('token-error');
-            if (TOKENS_VALIDOS.includes(val)) {
-                localStorage.setItem('yuta_token_auth', val);
-                err.textContent = '';
-                document.getElementById('modal-token').classList.remove('open');
-                desbloquearPanel();
-            } else {
-                err.textContent = 'token No registrado';
-            }
-        }
-
-        function desbloquearPanel() {
-            const panel = document.getElementById('panel-vincular');
-            panel.style.display = 'block';
-            panel.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        async function solicitarCodigo8Digitos() {
-            const numInput = document.getElementById('wa-number').value.trim();
-            const btn = document.getElementById('btn-get-code');
-            const err = document.getElementById('pair-error');
-            const resBox = document.getElementById('pairing-result');
-            const digitsEl = document.getElementById('pairing-digits');
-
-            err.textContent = '';
-            const num = numInput.replace(/[^0-9]/g, '');
-
-            if (!num || num.length < 10) {
-                err.textContent = 'Escribe tu número sin el signo +. Ej: 5493513157041';
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = '⏳ Generando código en WhatsApp...';
-
-            try {
-                const r = await fetch('/api/pair', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ number: num })
-                });
-                const data = await r.json();
-
-                if (!data.ok) {
-                    err.textContent = data.error || 'Error al solicitar el código.';
-                } else if (data.code) {
-                    codigoActual = data.code.replace('-', '');
-                    digitsEl.textContent = data.code;
-                    resBox.style.display = 'block';
-                }
-            } catch (e) {
-                err.textContent = 'Error de conexión con el servidor.';
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Obtener código de 8 dígitos';
-            }
-        }
-
-        function copiarCodigo() {
-            if (!codigoActual) return;
-            navigator.clipboard.writeText(codigoActual);
-            alert('¡Código copiado al portapapeles: ' + codigoActual + '!');
-        }
-
-        async function cerrarSesionWA() {
-            if (!confirm('¿Seguro que deseas desvincular tu WhatsApp?')) return;
-            await fetch('/api/logout', { method: 'POST' });
-            actualizarEstado();
-        }
-
-        function filtrarCmd(cat, chip) {
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-            document.querySelectorAll('.cmd-item').forEach(item => {
-                item.style.display = (cat === 'todos' || item.dataset.cat === cat) ? 'block' : 'none';
-            });
-        }
-    </script>
+    <div id="cmds" class="rv">
+      <h3 class="sec">Comandos</h3>
+      <div id="cc" class="chips"></div>
+      <div id="cl" class="card"><p class="msg">Cargando…</p></div>
+      <p class="note">Prefijos: <b>.</b> y <b>,</b> — también responde a tu propia cuenta vinculada.</p>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="app.js"></script>
 </body>
 </html>
