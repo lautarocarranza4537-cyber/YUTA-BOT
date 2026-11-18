@@ -3,158 +3,352 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YUTA Play - Validación de Token</title>
+    <title>YUTA PLAY - Bot de WhatsApp</title>
     <style>
-        body { 
-            background: #0f172a; 
-            color: #f8fafc; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            margin: 0; 
+        :root {
+            --bg-color: #090d16;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.4);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
         }
-        .card { 
-            background: #1e293b; 
-            padding: 2rem; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
-            width: 340px; 
-            text-align: center; 
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; overflow-x: hidden; padding-bottom: 3rem; }
+
+        /* Fondo con animación sutil */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%; left: -50%; width: 200vw; height: 200vh;
+            background: radial-gradient(circle at 70% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.06) 0%, transparent 50%);
+            z-index: -1;
+            animation: bgMove 15s ease infinite alternate;
         }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            margin: 12px 0; 
-            border: 1px solid #334155; 
-            border-radius: 6px; 
-            background: #0f172a; 
-            color: white; 
-            box-sizing: border-box; 
-            font-size: 14px;
+        @keyframes bgMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-30px, -30px); }
         }
-        input:focus { outline: none; border-color: #6366f1; }
-        button { 
-            background: #6366f1; 
-            color: white; 
-            border: none; 
-            padding: 12px 20px; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            width: 100%; 
-            font-weight: bold; 
-            font-size: 14px;
-            transition: background 0.2s;
+
+        header {
+            padding: 1.5rem 1rem 0.5rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--text-muted);
         }
-        button:hover { background: #4f46e5; }
-        #error-msg { 
-            color: #ef4444; 
-            font-size: 13px; 
-            margin-top: 8px; 
-            min-height: 18px; 
-            font-weight: 500;
+
+        .container { max-width: 480px; margin: 0 auto; padding: 1rem; }
+
+        /* Tarjeta Hero Principal */
+        .hero-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 1.8rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.8s ease-out;
         }
-        .hidden { display: none !important; }
-        #app-content { width: 100%; }
-        #result { margin-top: 15px; text-align: left; }
-        img { width: 100%; border-radius: 6px; }
-        audio { width: 100%; margin-top: 10px; }
-        .logout-btn { background: #334155; margin-top: 15px; font-size: 12px; padding: 6px; }
-        .logout-btn:hover { background: #475569; }
+        .hero-card::after {
+            content: '';
+            position: absolute;
+            top: -20px; right: -20px;
+            width: 140px; height: 140px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .hero-card h1 { font-size: 1.8rem; font-weight: 900; letter-spacing: 1px; margin-bottom: 0.5rem; }
+        .hero-card p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 1.5rem; }
+
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+        /* Sección de Vinculación */
+        .section-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            backdrop-filter: blur(10px);
+            animation: slideUp 0.6s ease-out;
+        }
+        .section-title { font-size: 1.1rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.4rem; }
+        .section-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.2rem; }
+
+        .input-field {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px 15px;
+            color: white;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+
+        /* Instrucciones */
+        .instructions-list {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            padding-left: 1.2rem;
+            line-height: 1.6;
+        }
+        .instructions-list li { margin-bottom: 4px; }
+
+        /* Categorías de Comandos[span_2](start_span)[span_2](end_span) */
+        .categories-container {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 0.5rem 0 1rem 0;
+            scrollbar-width: none;
+        }
+        .categories-container::-webkit-scrollbar { display: none; }
+        .chip {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+        .chip.active, .chip:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        /* Lista de Comandos */
+        .command-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+            transition: transform 0.2s;
+        }
+        .command-card:hover { transform: translateX(4px); background: rgba(30, 41, 59, 0.7); }
+        .cmd-name { font-family: monospace; color: #38bdf8; font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+        .cmd-desc { font-size: 0.8rem; color: var(--text-muted); }
+
+        /* Modal Token */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 8, 15, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-card {
+            background: #1e293b;
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 2rem;
+            width: 90%; max-width: 360px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .modal-overlay.active .modal-card { transform: scale(1); }
+        .modal-card h3 { margin-bottom: 0.5rem; font-size: 1.3rem; }
+        .modal-card p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.2rem; }
+        #modal-error { color: #ef4444; font-size: 0.8rem; margin-top: 8px; font-weight: 600; min-height: 18px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
-    <!-- PANTALLA DE INGRESO DE TOKEN -->
-    <div id="auth-screen" class="card">
-        <h2>Ingresar token</h2>
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 15px;">
-            Introduce tu token autorizado para poder vincularte.
-        </p>
-        <input type="text" id="token-input" placeholder="Escribe tu token aquí...">
-        <button onclick="validarToken()">Vincular</button>
-        <div id="error-msg"></div>
+    <header>YUTA PLAY</header>
+
+    <div class="container">
+        <!-- HERO -->
+        <div class="hero-card">
+            <h1>YUTA BOT</h1>
+            <p>Bot de WhatsApp: música, vídeos, grupos, anime y juegos.</p>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="abrirModalVinculacion()">Vincular mi WhatsApp</button>
+                <button class="btn btn-secondary" onclick="scrollAComandos()">Ver comandos</button>
+            </div>
+        </div>
+
+        <!-- PANEL DE VINCULACIÓN (Oculto hasta validar token) -->
+        <div id="panel-vinculacion" class="section-box" style="display: none;">
+            <div class="section-title">Vinculación por WhatsApp</div>
+            <div class="section-desc">Escribe tu número completo con código de país, sin + ni espacios. Ej: 5493513157041</div>
+            
+            <input type="text" class="input-field" placeholder="Tu número: 5493513157041">
+            <input type="text" class="input-field" placeholder="Nombre de tu bot (opcional). Ej: GOKU">
+            <input type="text" class="input-field" placeholder="Elegir banner del menú (opcional)">
+            
+            <button class="btn btn-primary" style="width: 100%;" onclick="alert('Generando código de emparejamiento...')">Obtener código</button>
+
+            <div style="margin-top: 1.5rem;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;">Cómo vincular</div>
+                <ol class="instructions-list">
+                    <li>Elige el nombre y el banner de tu bot (opcional) y toca <b>Obtener código</b>.</li>
+                    <li>En WhatsApp abre <b>Dispositivos vinculados</b> y toca <b>Vincular dispositivo</b>.</li>
+                    <li>Elige <b>Vincular con número de teléfono</b> y escribe el código.</li>
+                    <li>Cuando esta página diga Vinculado, escribe <b>.menu</b> en cualquier chat.</li>
+                    <li>En un grupo, el bot empieza apagado: escribe <b>.bot on</b> para que los demás puedan usarlo.</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- SECCIÓN COMANDOS[span_3](start_span)[span_3](end_span) -->
+        <div id="seccion-comandos" style="margin-top: 2rem;">
+            <div style="font-size: 1.1rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 0.5rem; color: var(--text-muted);">COMANDOS</div>
+            
+            <!-- Categorías -->
+            <div class="categories-container">
+                <div class="chip active" onclick="filtrar('todos', this)">Todos</div>
+                <div class="chip" onclick="filtrar('general', this)">General</div>
+                <div class="chip" onclick="filtrar('musica', this)">Música</div>
+                <div class="chip" onclick="filtrar('descargas', this)">Descargas</div>
+                <div class="chip" onclick="filtrar('grupo', this)">Grupo</div>
+                <div class="chip" onclick="filtrar('anime', this)">Anime</div>
+                <div class="chip" onclick="filtrar('juegos', this)">Juegos</div>
+            </div>
+
+            <!-- Lista de Comandos -->
+            <div id="lista-comandos">
+                <div class="command-card" data-cat="general">
+                    <div class="cmd-name">.menu [sección]</div>
+                    <div class="cmd-desc">Muestra el menú interactivo con todos los comandos disponibles del bot.</div>
+                </div>
+                <div class="command-card" data-cat="general">
+                    <div class="cmd-name">.owner</div>
+                    <div class="cmd-desc">Muestra la información de contacto oficial del creador del bot.</div>
+                </div>
+                <div class="command-card" data-cat="general">
+                    <div class="cmd-name">.ping</div>
+                    <div class="cmd-desc">Comprueba la velocidad de respuesta y latencia actual del bot.</div>
+                </div>
+                <div class="command-card" data-cat="musica">
+                    <div class="cmd-name">.play / .playaudio</div>
+                    <div class="cmd-desc">Busca y reproduce música de YouTube o la envía directamente como nota de voz / audio.</div>
+                </div>
+                <div class="command-card" data-cat="descargas">
+                    <div class="cmd-name">.pin / .pinvideo</div>
+                    <div class="cmd-desc">Busca y descarga imágenes o videos limpios directamente desde Pinterest.</div>
+                </div>
+                <div class="command-card" data-cat="grupo">
+                    <div class="cmd-name">.bot on / off</div>
+                    <div class="cmd-desc">Activa o desactiva las funciones del bot en chats grupales de WhatsApp.</div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- APLICACIÓN PRINCIPAL -->
-    <div id="app-screen" class="card hidden">
-        <div id="app-content">
-            <h2>🎵 Yuta Play</h2>
-            <p style="color: #22c55e; font-size: 12px; margin-bottom: 10px;">🟢 Vinculado correctamente</p>
-            <input type="text" id="query" placeholder="Escribe el nombre o link...">
-            <button onclick="buscar()">Buscar / Escuchar</button>
-            <div id="result"></div>
-            <button class="logout-btn" onclick="cerrarSesion()">Cerrar sesión</button>
+    <!-- MODAL DE TOKEN -->
+    <div id="modal-token" class="modal-overlay">
+        <div class="modal-card">
+            <h3>Ingresar token</h3>
+            <p>Introduce tu token autorizado para acceder a las herramientas de vinculación.</p>
+            <input type="text" id="token-input" class="input-field" placeholder="Escribe tu token aquí...">
+            <button class="btn btn-primary" style="width: 100%;" onclick="validarTokenModal()">Vincular</button>
+            <div id="modal-error"></div>
         </div>
     </div>
 
     <script>
-        const API_URL = "";
         const TOKENS_VALIDOS = [
             "MIAKHALIFAPRIME", "Jonathan2026", "Jon67y89", "año2027",
             "botpremium27", "chambeador247", "abeduldecacao24", 
             "bondiolasigma67", "Yutaplay", "Mipansususu67"
         ];
 
-        window.addEventListener('DOMContentLoaded', () => {
+        function abrirModalVinculacion() {
+            // Verificar si ya está validado previamente en este navegador
             const tokenGuardado = localStorage.getItem('yuta_token_auth');
             if (tokenGuardado && TOKENS_VALIDOS.includes(tokenGuardado)) {
-                mostrarApp();
-            }
-        });
-
-        function validarToken() {
-            const inputVal = document.getElementById('token-input').value.trim();
-            const errorDiv = document.getElementById('error-msg');
-
-            if (TOKENS_VALIDOS.includes(inputVal)) {
-                localStorage.setItem('yuta_token_auth', inputVal);
-                errorDiv.textContent = "";
-                mostrarApp();
+                mostrarPanelVinculacion();
             } else {
-                errorDiv.textContent = "token No registrado";
-                document.getElementById('token-input').style.borderColor = "#ef4444";
+                document.getElementById('modal-token').classList.add('active');
             }
         }
 
-        function mostrarApp() {
-            document.getElementById('auth-screen').classList.add('hidden');
-            document.getElementById('app-screen').classList.remove('hidden');
+        function validarTokenModal() {
+            const val = document.getElementById('token-input').value.trim();
+            const errDiv = document.getElementById('modal-error');
+
+            if (TOKENS_VALIDOS.includes(val)) {
+                localStorage.setItem('yuta_token_auth', val);
+                document.getElementById('modal-token').classList.remove('active');
+                errDiv.textContent = "";
+                document.getElementById('token-input').value = "";
+                mostrarPanelVinculacion();
+            } else {
+                errDiv.textContent = "token No registrado";
+            }
         }
 
-        function cerrarSesion() {
-            localStorage.removeItem('yuta_token_auth');
-            document.getElementById('token-input').value = "";
-            document.getElementById('error-msg').textContent = "";
-            document.getElementById('token-input').style.borderColor = "#334155";
-            document.getElementById('app-screen').classList.add('hidden');
-            document.getElementById('auth-screen').classList.remove('hidden');
+        function mostrarPanelVinculacion() {
+            const panel = document.getElementById('panel-vinculacion');
+            panel.style.display = 'block';
+            panel.scrollIntoView({ behavior: 'smooth' });
         }
 
-        async function buscar() {
-            const q = document.getElementById('query').value;
-            const resDiv = document.getElementById('result');
-            if (!q) return alert("Escribe algo para buscar");
+        function scrollAComandos() {
+            document.getElementById('seccion-comandos').scrollIntoView({ behavior: 'smooth' });
+        }
 
-            resDiv.innerHTML = "⏳ Buscando...";
-            try {
-                const response = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q)}`);
-                const data = await response.json();
-                if (data.error) {
-                    resDiv.innerHTML = `<p style="color:#ef4444; font-size:13px;">${data.error}</p>`;
-                    return;
+        function filtrar(cat, el) {
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+
+            const cards = document.querySelectorAll('.command-card');
+            cards.forEach(card => {
+                if (cat === 'todos' || card.getAttribute('data-cat') === cat) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
                 }
-                resDiv.innerHTML = `
-                    <img src="${data.thumbnail}" alt="Miniatura">
-                    <p style="font-size:14px; margin: 8px 0;"><b>${data.title}</b></p>
-                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Canal: ${data.author} | Duración: ${data.duration}</p>
-                    <audio controls src="${API_URL}/api/audio?q=${encodeURIComponent(q)}"></audio>
-                `;
-            } catch (e) {
-                resDiv.innerHTML = `<p style="color:#ef4444; font-size:13px;">Error al conectar con la API.</p>`;
-            }
+            });
         }
     </script>
 </body>
