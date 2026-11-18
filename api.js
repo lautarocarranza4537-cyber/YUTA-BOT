@@ -8,7 +8,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 module.exports = async (req, res) => {
   const u = new URL(req.url, 'http://x')
   
-  // Endpoint para la API de Stream de Audio Directo (.play)
+  // API Endpoint para Streaming de Audio de YouTube (.play)
   if (u.pathname === '/api/stream' || u.pathname === '/api/audio') {
     const q = u.searchParams.get('q') || u.searchParams.get('id')
     if (!q) { res.writeHead(400); res.end('Falta parámetro q'); return true }
@@ -24,10 +24,10 @@ module.exports = async (req, res) => {
     return true
   }
 
-  // Endpoint para la API de Descarga Directa de Video (TikTok / IG / FB)
+  // API Endpoint para Descargas de Redes Sociales (TikTok, IG, FB)
   if (u.pathname === '/api/download') {
     const url = u.searchParams.get('url')
-    const kind = u.searchParams.get('kind') || 'yt'
+    const kind = u.searchParams.get('kind') || 'tt'
     if (!url) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Falta URL' })); return true }
 
     try {
@@ -36,9 +36,8 @@ module.exports = async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true, url: t.url, title: t.title, author: t.author }))
       } else {
-        // Fallback yt-dlp stream directo
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true, url, note: 'Usar procesamiento interno' }))
+        res.end(JSON.stringify({ ok: true, url, note: 'Procesado por API interna' }))
       }
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })

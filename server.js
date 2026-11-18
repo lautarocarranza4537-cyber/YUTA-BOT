@@ -18,6 +18,7 @@ const MIME = {
 
 http.createServer(async (req, res) => {
   try {
+    // Interceptar llamadas a la API de descargas y WhatsApp
     if (await wa.http(req, res)) return
     if (await play(req, res)) return
     if (await api(req, res)) return
@@ -36,4 +37,4 @@ http.createServer(async (req, res) => {
   } catch (e) {
     if (!res.headersSent) { res.writeHead(500); res.end('Server Error') }
   }
-}).listen(process.env.PORT || 3000, () => console.log('🔥 [YUTA MASTER] Servidor y API activos en puerto 3000'))
+}).listen(process.env.PORT || 3000, () => console.log('🔥 [YUTA BOT] Servidor y API de descargas listos'))
