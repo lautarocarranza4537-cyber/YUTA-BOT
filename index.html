@@ -1,59 +1,161 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#04060c">
-<title>YUTA Play · Sistema API & WhatsApp</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YUTA BOT — En Mantenimiento</title>
+    <style>
+        :root {
+            --bg-color: #030305;
+            --neon-purple: #a855f7;
+            --neon-cyan: #38bdf8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* FONDO CON LA IMAGEN DE YUTA Y RIKA */
+        .bg-image {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            background: radial-gradient(circle at center, rgba(3,3,5,0.4) 0%, rgba(3,3,5,0.92) 80%),
+                        url('/yuta-bg.jpg') no-repeat center center / cover;
+            filter: contrast(1.15);
+            animation: bgPulse 10s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgPulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.04); }
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: -1;
+        }
+
+        /* CONTENEDOR DE LA ADVERTENCIA DE MANTENIMIENTO */
+        .maintenance-card {
+            text-align: center;
+            padding: 2.5rem 1.8rem;
+            max-width: 440px;
+            width: 90%;
+            background: rgba(10, 10, 15, 0.75);
+            border: 2px solid rgba(168, 85, 247, 0.4);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 35px rgba(168, 85, 247, 0.25);
+            backdrop-filter: blur(12px);
+            animation: cardAppear 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes cardAppear {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* LETRAS BRILLANTES CON EFECTO NEÓN */
+        .glow-title {
+            font-size: 1.9rem;
+            font-weight: 950;
+            letter-spacing: 2px;
+            line-height: 1.3;
+            text-transform: uppercase;
+            color: #fff;
+            text-shadow: 
+                0 0 10px var(--neon-purple),
+                0 0 20px var(--neon-purple),
+                0 0 40px var(--neon-purple),
+                0 0 80px var(--neon-purple);
+            animation: textGlow 2.5s ease-in-out infinite alternate;
+            margin-bottom: 1.2rem;
+        }
+
+        .glow-subtitle {
+            font-size: 1.15rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: #e0f2fe;
+            text-shadow: 
+                0 0 8px var(--neon-cyan),
+                0 0 16px var(--neon-cyan),
+                0 0 30px var(--neon-cyan);
+            animation: subtitleGlow 2.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes textGlow {
+            0% {
+                text-shadow: 
+                    0 0 10px rgba(168, 85, 247, 0.6),
+                    0 0 20px rgba(168, 85, 247, 0.6),
+                    0 0 40px rgba(168, 85, 247, 0.4);
+            }
+            100% {
+                text-shadow: 
+                    0 0 15px rgba(168, 85, 247, 1),
+                    0 0 30px rgba(168, 85, 247, 0.9),
+                    0 0 60px rgba(168, 85, 247, 0.7),
+                    0 0 100px rgba(168, 85, 247, 0.5);
+            }
+        }
+
+        @keyframes subtitleGlow {
+            0% {
+                text-shadow: 
+                    0 0 6px rgba(56, 189, 248, 0.6),
+                    0 0 12px rgba(56, 189, 248, 0.4);
+            }
+            100% {
+                text-shadow: 
+                    0 0 12px rgba(56, 189, 248, 1),
+                    0 0 24px rgba(56, 189, 248, 0.8),
+                    0 0 40px rgba(56, 189, 248, 0.6);
+            }
+        }
+
+        .badge-grade {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            background: rgba(168, 85, 247, 0.2);
+            border: 1px solid rgba(168, 85, 247, 0.6);
+            color: #d8b4fe;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+        }
+    </style>
 </head>
 <body>
-<canvas id="fx"></canvas>
-<header class="top"><div class="logo">YUTA<span>API & STREAM</span></div></header>
-<main>
-  <section class="view on">
-    <div class="hero">
-      <div class="kj">呪</div>
-      <div class="hero-t">
-        <h2>YUTA SYSTEM API</h2>
-        <p>Streaming directo y descargas sin almacenamiento local en Render.</p>
-        <div class="hbtns">
-          <button id="go-link" class="btn fill rip">Vincular WhatsApp</button>
-          <button onclick="document.getElementById('api-section').scrollIntoView({behavior:'smooth'})" class="btn rip">API Directa</button>
-        </div>
-      </div>
+
+    <div class="bg-image"></div>
+    <div class="overlay"></div>
+
+    <div class="maintenance-card">
+        <div class="badge-grade">Special Grade System • 乙骨 憂太</div>
+        <div class="glow-title">YUTA BOT EN MANTENIMIENTO</div>
+        <div class="glow-subtitle">MÁS LUEGO ESTARÁ DISPONIBLE</div>
     </div>
 
-    <div id="link" class="rv card">
-      <h2 class="big">Vinculación por <span>WhatsApp</span></h2>
-      <p class="note">Escribe tu número completo con código de país, sin el signo + ni espacios. Ej: 5493513157041</p>
-      <form id="lf" class="s col">
-        <input id="lp" type="tel" inputmode="numeric" placeholder="Ej: 5493513157041" autocomplete="off">
-        <input id="ln" type="text" maxlength="24" placeholder="Nombre de tu bot (opcional)" autocomplete="off">
-        <button class="btn fill rip">Obtener código de 8 dígitos</button>
-      </form>
-      <div id="lout"></div>
-    </div>
-
-    <!-- SECCIÓN DE PRUEBA DE LA API DE STREAM DIRECTO -->
-    <div id="api-section" class="card rv">
-      <h3 class="big">API de <span>Stream Directo</span></h3>
-      <p class="note">Prueba el streaming de audio m4a sin pasar por el disco del servidor:</p>
-      <div class="s col">
-        <input id="api-query" type="text" placeholder="Nombre de canción o ID de YouTube...">
-        <button onclick="probarApiStream()" class="btn fill rip">Obtener Enlace de Stream</button>
-      </div>
-      <div id="api-result" style="margin-top: 15px; word-break: break-all; font-size: 0.85rem;"></div>
-    </div>
-
-    <div id="cmds" class="rv card">
-      <h3 class="sec">Comandos Activos</h3>
-      <div id="cc" class="chips"></div>
-      <div id="cl"><p class="msg">Cargando comandos…</p></div>
-    </div>
-  </section>
-</main>
-<div id="toast"></div>
-<script src="app.js"></script>
 </body>
 </html>
