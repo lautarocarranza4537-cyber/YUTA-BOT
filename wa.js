@@ -10,7 +10,7 @@ const tokens = require('./tokens')
 
 const DIR = path.join(__dirname, 'sessions')
 const MAX = Number(process.env.MAX_SESSIONS) || 2
-const PAIR_TTL = 3 * 60 * 1000
+const PAIR_TTL = Number(process.env.PAIR_TTL_MS) || 2 * 60 * 1000
 const sessions = new Map()
 const byIp = new Map()
 const byPhone = new Map()
@@ -91,7 +91,7 @@ async function start(phone, wantCode) {
   sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
     if (s.sock !== sock || s.dead) return
     if (connection === 'open') {
-      s.state = 'open'; s.retries = 0; clearTimeout(s.timer)
+      s.state = 'open'; s.retries = 0; clearTimeout(s.timer); tokens.confirm(phone)
       console.log('✅ WhatsApp vinculado:', phone)
     }
     if (connection === 'close') {
@@ -175,7 +175,7 @@ async function link(rawPhone, ip, body) {
   try {
     const code = await start(phone, true)
     if (!code) throw new Error('sin código')
-    tokens.claim(body.token, phone)
+    tokens.reserve(body.token, phone, PAIR_TTL)
     cmd.setPrefs(phone, prefs)
     return { state: 'pairing', code: code.match(/.{1,4}/g).join('-') }
   } catch (e) {

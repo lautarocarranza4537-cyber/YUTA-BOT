@@ -24,7 +24,8 @@ const hash = t => crypto.createHash('sha256').update(norm(t)).digest('hex')
 const extra = (process.env.LINK_TOKENS || '').split(',').map(norm).filter(Boolean).map(hash)
 const ALL = [...new Set([...HASHES, ...extra])]
 
-let used = {}
+let used = {}      // token -> número que ya terminó de vincular (se guarda en disco)
+const pending = {} // token -> { phone, until }: pidió el código pero todavía no vinculó
 try { used = JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch {}
 const save = () => { try { fs.mkdirSync(path.dirname(FILE), { recursive: true }); fs.writeFileSync(FILE, JSON.stringify(used)) } catch {} }
 
@@ -39,26 +40,55 @@ function find(token) {
 }
 const valid = token => !!find(token)
 
-// Cada token es para un solo número: el primero que lo usa se lo queda
+// Cada token es para un solo número. Si alguien pidió el código y no vincula a tiempo, se libera solo.
 function canUse(token, phone) {
   const h = find(token)
   if (!h) return { ok: false, why: 'Token no registrado' }
-  if (used[h] && used[h] !== String(phone)) return { ok: false, why: 'Este token ya lo está usando otro número' }
+  const p = String(phone)
+  if (used[h] && used[h] !== p) return { ok: false, why: 'Este token ya lo está usando otro número' }
+  const r = pending[h]
+  if (r && r.until > Date.now() && r.phone !== p) {
+    const s = Math.max(1, Math.ceil((r.until - Date.now()) / 1000))
+    return { ok: false, why: 'Este token lo está usando otro número ahora mismo. Si no termina de vincular, se libera en ' + s + ' s.' }
+  }
   return { ok: true, h }
 }
-function claim(token, phone) {
+
+// Reserva el token mientras el número vincula (ms = tiempo máximo)
+function reserve(token, phone, ms) {
   const r = canUse(token, phone)
   if (!r.ok) return r
-  if (used[r.h] !== String(phone)) { used[r.h] = String(phone); save() }
+  pending[r.h] = { phone: String(phone), until: Date.now() + ms }
   return r
 }
 
-// Libera el token que usaba ese número (se desvinculó o el código venció)
-function release(phone) {
+// El número terminó de vincular: el token queda suyo
+function confirm(phone) {
+  const p = String(phone)
   let n = 0
-  for (const h of Object.keys(used)) if (used[h] === String(phone)) { delete used[h]; n++ }
+  for (const h of Object.keys(pending)) {
+    if (pending[h].phone === p) { used[h] = p; delete pending[h]; n++ }
+  }
   if (n) save()
   return n
 }
 
-module.exports = { release, valid, canUse, claim, total: ALL.length, _norm: norm }
+// Libera el token de ese número (se desvinculó o el código venció)
+function release(phone) {
+  const p = String(phone)
+  let n = 0
+  for (const h of Object.keys(pending)) if (pending[h].phone === p) { delete pending[h]; n++ }
+  for (const h of Object.keys(used)) if (used[h] === p) { delete used[h]; n++ }
+  if (n) save()
+  return n
+}
+
+// Se queda con el token para siempre (sin reserva); se mantiene por compatibilidad
+function claim(token, phone) {
+  const r = canUse(token, phone)
+  if (!r.ok) return r
+  used[r.h] = String(phone); delete pending[r.h]; save()
+  return r
+}
+
+module.exports = { valid, canUse, reserve, confirm, release, claim, total: ALL.length, _norm: norm }

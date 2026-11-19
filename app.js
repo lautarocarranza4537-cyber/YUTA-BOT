@@ -125,7 +125,7 @@ $('lb').onchange=function(){
       }
       if(j.state==='open'){show('<div class="wok">✅ Este número ya está vinculado. Para cambiar el nombre o el banner usa <b>.botname</b> y <b>.setbanner</b> en WhatsApp.</div>');return}
       if(j.state==='connecting'){show('<p class="msg">Este número ya estaba vinculado y se está reconectando. Espera un momento.</p>');timer=setInterval(poll,3000);return}
-      show('<p class="note">Tu código de vinculación:</p><div class="wcode">'+esc(j.code)+'</div><button type="button" id="lcopy" class="btn rip">Copiar código</button><p class="note" style="margin-top:10px">Escríbelo en WhatsApp. Vence en unos 3 minutos. Esperando vinculación…</p>');
+      show('<p class="note">Tu código de vinculación:</p><div class="wcode">'+esc(j.code)+'</div><button type="button" id="lcopy" class="btn rip">Copiar código</button><p class="note" style="margin-top:10px">Escríbelo en WhatsApp. Tienes 2 minutos para vincular; si no, el código vence y el token se libera. Esperando vinculación…</p>');
       $('lcopy').onclick=function(){
         const t=j.code.replace('-','');
         if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){toast('Código copiado')},function(){toast('Copia el código a mano')});
