@@ -1,5 +1,4 @@
-const api = require('./api')
-const H = api.h
+const H = require('./ytsearch')
 const cache = new Map()
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const durSec = t => String(t || '').split(':').reduce((a, b) => a * 60 + (+b || 0), 0)

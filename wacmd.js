@@ -8,6 +8,7 @@ require('./cmds_g')(H)
 require('./cmds_h')(H)
 require('./cmds_i')(H)
 require('./reacciones')(H)
+require('./cmds_j')(H)
 const { commands, num, dbOf, saveDb, grp, getMeta, isAdmin, botAdmin, getBody, getCtx } = H
 
 const PREFIXES = ['.', ',']
