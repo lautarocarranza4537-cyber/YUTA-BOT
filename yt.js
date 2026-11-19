@@ -55,10 +55,7 @@ async function nextInfo(id) {
 
 async function details(id) {
   const [p, n] = await Promise.allSettled([
-    (async () => {
-      for (const c of IT) { try { const j = await player(id, c); if (j.videoDetails) return j } catch {} }
-      throw new Error('sin datos')
-    })(),
+    Promise.any(IT.map(async c => { const j = await player(id, c); if (!j.videoDetails) throw new Error('sin datos'); return j })),
     nextInfo(id)
   ])
   const j = p.status === 'fulfilled' ? p.value : null

@@ -11,7 +11,7 @@ const NEWS = [
   '• Economía: daily, weekly, work, crime, apuestas y más.',
   '• play2 baja videos de YouTube en 720p.',
   '• pin busca 10 imágenes de Pinterest.',
-  '• code vincula tu WhatsApp desde el privado.'
+  '• La vinculación ahora se hace en la página, con un token.'
 ]
 
 async function claude(prompt, imgB64) {

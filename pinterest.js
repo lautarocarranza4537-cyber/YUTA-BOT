@@ -11,6 +11,7 @@ const decode = s => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"
   .replace(/&#(\d+);/g, (_, n) => cp(+n)).replace(/&#x([0-9a-f]+);/gi, (_, h) => cp(parseInt(h, 16)))
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const tokens = s => norm(s).split(/[^a-z0-9]+/).filter(t => t.length > 1)
+const cleanTitle = s => decode(s).replace(/[\ue000\ue001]/g, '').replace(/\s+/g, ' ').trim()
 
 function hostOk(u) {
   try {
@@ -23,9 +24,13 @@ function hostOk(u) {
 
 const keyOf = u => { const m = /i\.pinimg\.com\/[^/]+\/(.+)\.(?:jpg|jpeg|png|webp|gif)/i.exec(u); return m ? m[1] : u }
 
+// Solo imágenes de pines de verdad (se descartan fotos de perfil, íconos y logos)
+const PINIMG = /^https:\/\/i\.pinimg\.com\/(?:236x|474x|564x|736x|1200x|originals)\//i
+const pinOk = u => PINIMG.test(u)
+
 // ¿El título tiene que ver con lo que se pidió?
 function relevant(title, q) {
-  if (!title) return true
+  if (!title) return false
   const qt = tokens(q)
   if (!qt.length) return true
   const t = tokens(title).join(' ')
@@ -48,9 +53,9 @@ function variants(u) {
   ])]
 }
 
-async function apiPage(q, bookmark) {
-const src = '/search/pins/?q=' + encodeURIComponent(q)
-  const opts = { query: q, scope: 'pins' }
+async function apiPage(q, bookmark, scope = 'pins') {
+  const src = '/search/' + (scope === 'videos' ? 'videos' : 'pins') + '/?q=' + encodeURIComponent(q)
+  const opts = { query: q, scope }
   if (bookmark) opts.bookmarks = [bookmark]
   const data = JSON.stringify({ options: opts, context: {} })
   const u = 'https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=' + encodeURIComponent(src) + '&data=' + encodeURIComponent(data) + '&_=' + Date.now()
@@ -63,9 +68,9 @@ const src = '/search/pins/?q=' + encodeURIComponent(q)
   const rr = j.resource_response || {}
   const items = []
   for (const x of (rr.data && rr.data.results) || []) {
-    if (!x || !x.images || x.is_promoted) continue
-    const im = x.images['736x'] || x.images.orig || x.images['474x']
-    if (im && im.url) items.push({ u: im.url, t: x.grid_title || x.title || '' })
+    if (!x || x.is_promoted) continue
+    const im = x.images && (x.images['736x'] || x.images.orig || x.images['474x'])
+    items.push({ id: x.id, u: im && im.url, t: x.grid_title || x.title || '', video: !!(x.videos || x.story_pin_data || x.is_video) })
   }
   return { items, bookmark: rr.bookmark }
 }
@@ -75,54 +80,54 @@ async function viaApi(q) {
   if (items.length < 14 && p1.bookmark && p1.bookmark !== '-end-') {
     try { items = items.concat((await apiPage(q, p1.bookmark)).items) } catch {}
   }
-  return items
+  return items.filter(x => x.u && pinOk(x.u))
 }
 
-// Respaldo: Bing Imágenes (con título), solo lo alojado en Pinterest
-async function bingPage(q, first) {
-  const u = 'https://www.bing.com/images/async?q=' + encodeURIComponent(q + ' site:pinterest.com') + '&first=' + first + '&count=35&adlt=moderate&mmasync=1&setlang=es'
+// Bing Imágenes: solo lo que está alojado en Pinterest (o de cualquier sitio si any = true)
+async function bingPage(q, first, any) {
+  const u = 'https://www.bing.com/images/async?q=' + encodeURIComponent(any ? q : q + ' site:pinterest.com') + '&first=' + first + '&count=35&adlt=moderate&mmasync=1&setlang=es'
   const r = await fetch(u, { headers: { 'User-Agent': DESK, 'Accept-Language': 'es-419,es;q=0.9' }, signal: AbortSignal.timeout(15000) })
   if (!r.ok) throw new Error('Bing respondió ' + r.status)
   const html = (await r.text()).replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\\u0026/g, '&').replace(/\\\//g, '/')
   const out = []
   for (const m of html.matchAll(/"murl":"(https?:[^"]+?)"([^{}]*?)"t":"([^"]*)"/g)) {
-    if (/^https:\/\/i\.pinimg\.com\//i.test(m[1])) out.push({ u: m[1], t: decode(m[3]) })
+    const url = m[1]
+    if (any ? /^https:\/\//i.test(url) : pinOk(url)) out.push({ u: url, t: cleanTitle(m[3]) })
   }
   return out
 }
-async function viaBing(q) {
+async function viaBing(q, any) {
   let all = []
   for (const first of [0, 35, 70]) {
-    try { all = all.concat(await bingPage(q, first)) } catch (e) { if (!all.length) throw e; break }
+    try { all = all.concat(await bingPage(q, first, any)) } catch (e) { if (!all.length) throw e; break }
     if (all.length >= 40) break
   }
   return all
 }
 
-async function viaHtml(q) {
-  const r = await fetch('https://www.pinterest.com/search/pins/?q=' + encodeURIComponent(q) + '&rs=typed', { headers: { 'User-Agent': DESK, 'Accept-Language': 'es-419,es;q=0.9' }, signal: AbortSignal.timeout(15000) })
-  if (!r.ok) throw new Error('Pinterest respondió ' + r.status)
-  const html = unesc(await r.text())
-  return (html.match(/https:\/\/i\.pinimg\.com\/(?:236x|474x|564x|736x|originals)\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]+\.(?:jpg|png|webp)/gi) || []).map(u => ({ u, t: '' }))
-}
-
+// Busca hasta k enlaces de imágenes. Lo que coincide con el título va primero.
 async function search(q, k) {
-  const seen = new Set(), out = []
-  const take = (items, label, filter) => {
-    let n = 0, dropped = 0
+  const seen = new Set(), pri = [], rest = []
+  const take = (items, label, rank) => {
+    let n = 0
     for (const it of items) {
       const key = keyOf(it.u)
       if (seen.has(key)) continue
-      if (filter && !relevant(it.t, q)) { dropped++; continue }
-      seen.add(key); out.push(it.u); n++
+      seen.add(key); n++
+      if (rank && !relevant(it.t, q)) rest.push(it.u); else pri.push(it.u)
     }
-    console.log('📌 ' + label + ': ' + n + ' útiles' + (dropped ? ', ' + dropped + ' descartados por no coincidir' : ''))
+    console.log('📌 ' + label + ': ' + n + ' resultados')
   }
   try { take(await viaApi(q), 'api', false) } catch (e) { console.log('⚠ pinterest api → ' + errMsg(e)) }
-  if (out.length < k) { try { take(await viaBing(q), 'bing', true) } catch (e) { console.log('⚠ pinterest bing → ' + errMsg(e)) } }
-  if (out.length < k) { try { take(await viaHtml(q), 'html', false) } catch (e) { console.log('⚠ pinterest html → ' + errMsg(e)) } }
-  if (!out.length) throw new Error('No encontré imágenes de eso en Pinterest. Prueba con otro nombre.')
-  return out.slice(0, k)
+  if (pri.length < k) { try { take(await viaBing(q, false), 'bing', true) } catch (e) { console.log('⚠ pinterest bing → ' + errMsg(e)) } }
+  let web = false
+  if (pri.length + rest.length < 3) {
+    try { take(await viaBing(q, true), 'bing (web)', true); web = true } catch (e) { console.log('⚠ bing web → ' + errMsg(e)) }
+  }
+  const urls = [...pri, ...rest].slice(0, k)
+  if (!urls.length) throw new Error('No encontré imágenes de eso. Prueba con otro nombre.')
+  urls.web = web
+  return urls
 }
 
 const isImage = b => b.length > 3 && ((b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50) || (b.slice(0, 4).toString() === 'RIFF' && b.slice(8, 12).toString() === 'WEBP') || b.slice(0, 4).toString() === 'GIF8')
@@ -150,11 +155,11 @@ async function getImg(u) {
       const r = await fetch(v, { headers: { 'User-Agent': DESK, Referer: 'https://www.pinterest.com/', Accept: 'image/avif,image/webp,image/*,*/*;q=0.8' }, signal: AbortSignal.timeout(15000) })
       if (!r.ok) throw new Error('HTTP ' + r.status)
       const b = Buffer.from(await r.arrayBuffer())
-      if (b.length < 2000) throw new Error('imagen muy chica')
+      if (b.length < 6000) throw new Error('imagen muy chica')
       if (b.length > 8 * 1048576) throw new Error('muy pesada')
       if (!/image/i.test(r.headers.get('content-type') || '') && !isImage(b)) throw new Error('no es una imagen')
       const d = dims(b)
-      if (d && Math.max(d.w, d.h) < 250) throw new Error('imagen diminuta')
+      if (d && (Math.max(d.w, d.h) < 300 || Math.max(d.w, d.h) / Math.max(1, Math.min(d.w, d.h)) > 3.2)) throw new Error('imagen no válida (tamaño)')
       return b
     } catch (e) { last = e }
   }
@@ -173,6 +178,7 @@ async function images(q, n = 10) {
     }
   }
   console.log('📌 pin "' + q + '": ' + urls.length + ' links, ' + out.length + ' descargadas, ' + fails + ' fallaron' + (firstErr ? ' (' + firstErr + ')' : ''))
+  out.web = !!urls.web
   return out
 }
 
@@ -186,7 +192,8 @@ async function getVideo(u) {
   return Buffer.concat(chunks)
 }
 
-async function fromLink(url) {
+// mode: 'image' (comando pin) o 'video' (comando pinvideo)
+async function fromLink(url, mode = 'image') {
   const r = await fetch(url, { headers: { 'User-Agent': DESK, 'Accept-Language': 'es-419,es;q=0.9', Accept: 'text/html' }, redirect: 'follow', signal: AbortSignal.timeout(15000) })
   if (!hostOk(r.url)) throw new Error('Ese link no es de Pinterest.')
   if (!r.ok) throw new Error('Pinterest respondió ' + r.status)
@@ -196,23 +203,41 @@ async function fromLink(url) {
       html.match(new RegExp('<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']' + prop + '["\']', 'i'))
     return m ? decode(m[1]) : ''
   }
-  const rawTitle = meta('og:title').replace(/\s*[-|·]\s*Pinterest\s*$/i, '').trim()
-  const titleP = toSpanish(rawTitle).then(t => t.slice(0, 120))
+  const titleP = toSpanish(meta('og:title').replace(/\s*[-|·]\s*Pinterest\s*$/i, '').trim()).then(t => t.slice(0, 120))
 
   const vids = [...new Set(html.match(/https:\/\/v\d*\.pinimg\.com\/videos\/[^"'\\\s<>]+?\.mp4/g) || [])]
-  if (vids.length) {
-    const pref = ['720p', '1080p', '480p', '360p']
-    const u = pref.map(p => vids.find(v => v.includes(p))).find(Boolean) || vids[0]
-    try { return { type: 'video', buf: await getVideo(u), title: await titleP } } catch (e) { console.log('⚠ pin mp4 →', errMsg(e)); if (/pesado/.test(errMsg(e))) throw e }
+  const looksVideo = vids.length > 0 || /"video_list"|V_HLSV3|\.m3u8|"is_video":\s*true/.test(html)
+
+  if (mode === 'image' && looksVideo) throw new Error('Ese pin es un video. Para bajarlo usa pinvideo.')
+  if (mode === 'video' && !looksVideo) throw new Error('Ese pin es una imagen. Para bajarla usa pin.')
+
+  if (mode === 'video') {
+    if (vids.length) {
+      const pref = ['720p', '1080p', '480p', '360p']
+      const u = pref.map(p => vids.find(v => v.includes(p))).find(Boolean) || vids[0]
+      try { return { type: 'video', buf: await getVideo(u), title: await titleP } } catch (e) { console.log('⚠ pin mp4 →', errMsg(e)); if (/pesado/.test(errMsg(e))) throw e }
+    }
+    const v = await social.video('pin', r.url)
+    return { type: 'video', buf: v.buf, title: await titleP }
   }
-  if (/"video_list"|V_HLSV3|\.m3u8|"is_video":\s*true/.test(html)) {
-    try { const v = await social.video('pin', url); return { type: 'video', buf: v.buf, title: await titleP } } catch (e) { console.log('⚠ pin yt-dlp →', errMsg(e)) }
-  }
+
   const og = meta('og:image')
-  if (!og) throw new Error('No encontré ninguna imagen ni video en ese pin.')
+  if (!og) throw new Error('No encontré ninguna imagen en ese pin.')
   const orig = og.replace(/\/(?:\d+x|\d+x\d+_RS|originals)\//, '/originals/')
   try { return { type: 'image', buf: await getImg(orig), title: await titleP } } catch {}
   return { type: 'image', buf: await getImg(og), title: await titleP }
 }
 
-module.exports = { hostOk, images, fromLink, _t: { variants, keyOf, relevant } }
+// Busca videos de Pinterest por nombre y baja el primero que se pueda
+async function videoByName(q) {
+  const p = await apiPage(q, null, 'videos')
+  const ids = [...new Set(p.items.filter(x => x.id).map(x => String(x.id)))].slice(0, 5)
+  if (!ids.length) throw new Error('No encontré videos de eso en Pinterest.')
+  let last = null
+  for (const id of ids) {
+    try { return await fromLink('https://www.pinterest.com/pin/' + id + '/', 'video') } catch (e) { last = e; console.log('⚠ pinvideo ' + id + ' →', errMsg(e)) }
+  }
+  throw last || new Error('No pude bajar ningún video de eso.')
+}
+
+module.exports = { hostOk, images, fromLink, videoByName, _t: { variants, keyOf, relevant, pinOk, cleanTitle } }

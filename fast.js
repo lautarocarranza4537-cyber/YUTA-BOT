@@ -29,7 +29,7 @@ async function both(q) {
   const yP = safe(H.ytPage(q).then(r => r.items)).then(v => ({ s: 'y', v }))
   const first = await Promise.race([mP, yP])
   const otherP = first.s === 'm' ? yP : mP
-  const other = await Promise.race([otherP, sleep(first.v.length ? 2500 : 12000).then(() => ({ s: first.s === 'm' ? 'y' : 'm', v: [] }))])
+  const other = await Promise.race([otherP, sleep(first.v.length ? 1200 : 12000).then(() => ({ s: first.s === 'm' ? 'y' : 'm', v: [] }))])
   return { m: first.s === 'm' ? first.v : other.v, y: first.s === 'y' ? first.v : other.v }
 }
 
