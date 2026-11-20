@@ -1,6 +1,6 @@
 const yt = require('./yt')
 const fast = require('./fast')
-const play = require('./play')
+const play = require('./audio')
 const thumb = require('./thumb')
 const fmt = require('./fmt')
 const pin = require('./pinterest')
