@@ -112,7 +112,7 @@ async function handle(sock, m, phone) {
     if (plan.type === 'clarify') { await reply(plan.text); return }
     if (plan.type === 'search') {
       try {
-        const text = await NL.searchWiki(plan.query)
+        const text = await NL.searchWeb(plan.query)
         const sent = await reply(text)
         if (sent && sent.key && sent.key.id) { aiReplies.add(sent.key.id); if (aiReplies.size > 300) aiReplies.delete(aiReplies.values().next().value) }
         NL.rememberTurn(conversationKey, clean || body, text)
