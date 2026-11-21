@@ -13,7 +13,12 @@ module.exports = H => {
   })
   add(['kick', 'echar'], 'Grupo', 'Expulsa a un miembro', { ...GB, usage: '@usuario' }, async c => {
     if (!c.target) return c.reply('Menciona o responde a alguien.')
-    await c.sock.groupParticipantsUpdate(c.chat, [c.target], 'remove')
+    const participant = c.meta.participants.find(p => [p.id, p.jid, p.phoneNumber, p.lid].some(id => id && num(id) === num(c.target)))
+    if (!participant) return c.reply('No encontré a esa persona entre los miembros del grupo.')
+    if (participant.admin) return c.reply('No puedo expulsar a una persona administradora. Primero habría que quitarle el rol.')
+    if ([c.sock.user && c.sock.user.id, c.sock.user && c.sock.user.lid].some(id => id && num(id) === num(c.target))) return c.reply('No puedo expulsarme a mí mismo del grupo.')
+    await c.sock.groupParticipantsUpdate(c.chat, [participant.id || c.target], 'remove')
+    await c.reply('✅ Listo, expulsé a @' + num(c.target) + '.', [c.target])
   })
   add(['add', 'agregar'], 'Grupo', 'Agrega un número al grupo', { ...GB, usage: '<número>' }, async c => {
     const n = (c.args[0] || '').replace(/\D/g, '')
