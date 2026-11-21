@@ -25,15 +25,17 @@ module.exports = async (req, res) => {
     try {
       const s = shield.status()
       const rows = Object.values(s.metodos || {})
-      const recentlyWorking = rows.filter(x => x.ultimoOk && x.ultimoOk !== 'nunca').length
+      const successful = rows.filter(x => x.ultimoOk && x.ultimoOk !== 'nunca').length
       const paused = rows.filter(x => String(x.estado || '').startsWith('en pausa')).length
+      const available = /^OK:/.test(s.veredicto) || /solo funciona SoundCloud/.test(s.veredicto)
+      const verdict = rows.length ? s.veredicto : 'Sin pruebas de audio registradas desde el inicio del servicio.'
       // Exponer solo agregados: no listar instancias, mensajes de error ni URLs de proveedores.
       json(res, 200, {
         ok: true,
         service: 'yuta-shield',
-        available: recentlyWorking > 0,
-        verdict: s.veredicto,
-        methods: { known: rows.length, recentlyWorking, paused }
+        available,
+        verdict,
+        methods: { known: rows.length, successful, paused }
       })
     } catch {
       json(res, 503, { ok: false, service: 'yuta-shield', available: false, error: 'Estado de protección no disponible' })
