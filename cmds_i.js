@@ -74,7 +74,11 @@ module.exports = H => {
       })
     } catch (e) {
       console.log(name.toUpperCase() + ' ERROR:', e.message)
-      await c.reply('❌ ' + String(e.message || 'No pude descargar el audio').slice(0, 200)).catch(() => {})
+      const challenge = e && (e.code === 'YOUTUBE_BOT_CHALLENGE' || /sign[ -]?in to confirm|confirm you(?:'|’)re not a bot|not a bot|unusual traffic|captcha/i.test(String(e.message || '')))
+      const message = challenge
+        ? 'YouTube está pidiendo iniciar sesión para verificar el tráfico. No pude obtener el audio; la conversión a M4A o nota de voz no empezó.'
+        : String(e.message || 'No pude descargar el audio').slice(0, 200)
+      await c.reply('❌ ' + message).catch(() => {})
     }
   }
 

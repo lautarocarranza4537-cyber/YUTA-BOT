@@ -156,6 +156,20 @@ function drawCmds(cat){
   }catch(e){$('cl').innerHTML='<p class="msg">No se pudo cargar la lista de comandos.</p>'}
 })();
 
+/* Cursed-energy motes: small bursts on touch and a soft wake on scroll. */
+(function(){
+  const c=$('fx'),ctx=c&&c.getContext('2d');
+  if(!ctx||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const sparks=[];let last=0;
+  function fit(){const d=Math.min(devicePixelRatio||1,1.6);c.width=Math.round(innerWidth*d);c.height=Math.round(innerHeight*d);c.style.width=innerWidth+'px';c.style.height=innerHeight+'px';ctx.setTransform(d,0,0,d,0,0)}
+  fit();addEventListener('resize',fit,{passive:true});
+  function burst(x,y,n=12){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=1+Math.random()*3;sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,r:1+Math.random()*2,life:1,h:Math.random()>.55?225:265})}}
+  document.addEventListener('pointerdown',e=>{if(e.target.closest('button,.file'))burst(e.clientX,e.clientY,10)},{passive:true});
+  addEventListener('scroll',()=>{const now=performance.now();if(now-last<130)return;last=now;burst(Math.random()*innerWidth,innerHeight-4,2)},{passive:true});
+  function frame(){ctx.clearRect(0,0,innerWidth,innerHeight);for(let i=sparks.length-1;i>=0;i--){const p=sparks[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.045;p.vx*=.985;p.life-=.025;ctx.beginPath();ctx.fillStyle='hsla('+p.h+',95%,78%,'+Math.max(p.life,0)+')';ctx.shadowBlur=12;ctx.shadowColor='hsla('+p.h+',100%,70%,.8)';ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);ctx.fill();if(p.life<=0)sparks.splice(i,1)}requestAnimationFrame(frame)}
+  frame();
+})();
+
 (function(){
   const els=document.querySelectorAll('.rv');
   if(!('IntersectionObserver' in window)){els.forEach(e=>e.classList.add('in'));return}

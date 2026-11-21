@@ -34,6 +34,7 @@ const CAP = 30 * 1024 * 1024
 const RELAY = (process.env.RELAY_URL || '').replace(/\/+$/, '')
 const cache = new Map()
 const keyOf = (id, su) => (id ? 'y:' + id : 's:' + su)
+const isBotChallenge = text => /sign[ -]?in to confirm|confirm you(?:'|’)re not a bot|not a bot|unusual traffic|captcha/i.test(String(text || ''))
 
 const IT = [
   { name: 'vr', id: 28, ua: 'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
@@ -155,7 +156,11 @@ async function resolve(id, su, title, trace, fresh) {
     if (found || Date.now() > deadline) break
     try { found = await attempt(a, trace) } catch {}
   }
-  if (!found) throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
+  if (!found) {
+    const errors = trace.map(x => x.error || '').join(' | ')
+    if (isBotChallenge(errors)) throw Object.assign(new Error('YouTube está pidiendo iniciar sesión para verificar el tráfico. No pude obtener el audio y la conversión a M4A/nota de voz no llegó a empezar.'), { code: 'YOUTUBE_BOT_CHALLENGE' })
+    throw new Error('No pude reproducir (' + trace.length + ' métodos fallaron). ' + ((trace[0] && trace[0].error) || ''))
+  }
   cache.set(key, { t: Date.now(), v: found })
   if (cache.size > 200) cache.delete(cache.keys().next().value)
   console.log('✅ audio listo')
