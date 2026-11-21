@@ -1,5 +1,6 @@
 'use strict'
 const { spawn } = require('child_process')
+const CORE = require('./core')
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 const MAX_BYTES = 30 * 1024 * 1024
 const MAX_QUERY = 160
@@ -26,9 +27,11 @@ function resolveQuery(raw) {
 
 async function getAudioMetadataAndStream(queryOrUrl) {
   const query = resolveQuery(queryOrUrl)
+  await CORE.ready
+  if (CORE.S.err) throw new Error('yt-dlp no está listo: ' + CORE.S.err)
   return new Promise((resolve, reject) => {
-    const args = ['--no-playlist', '--no-warnings', '-j', '--max-downloads', '1', '--extractor-args', 'youtube:player_client=ios,android,web', '--', query.target]
-    const p = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const args = ['--no-playlist', '--no-warnings', '-j', '--max-downloads', '1', ...CORE.S.js, '--extractor-args', 'youtube:player_client=ios,android,web', '--', query.target]
+    const p = spawn(CORE.S.bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let out = '', err = '', settled = false
     const done = (e, value) => { if (settled) return; settled = true; clearTimeout(timer); e ? reject(e) : resolve(value) }
     const timer = setTimeout(() => { p.kill('SIGKILL'); done(new Error('Timeout extrayendo metadatos')) }, 25000)
