@@ -69,15 +69,42 @@ async function interpret(text, commandList, memory, conversationKey) {
   return { type: o.type, text: safeText(o.text, 1400) || '¿Me lo decís de otra forma?' }
 }
 
-async function searchWiki(query) {
-  const u = new URL('https://es.wikipedia.org/w/api.php')
-  u.search = new URLSearchParams({ action: 'query', list: 'search', srsearch: query, format: 'json', utf8: '1', srlimit: '4' })
-  const r = await fetch(u, { headers: { 'User-Agent': 'YUTA-BOT/1.0 (Wikipedia search)' }, signal: AbortSignal.timeout(12000) })
+function htmlText(s) {
+  return String(s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#39;|&#039;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/\s+/g, ' ').trim()
+}
+function resultUrl(href) {
+  try {
+    const u = new URL(htmlText(href), 'https://www.bing.com')
+    let raw = u.searchParams.get('u')
+    if (raw && raw.startsWith('a1')) raw = Buffer.from(raw.slice(2), 'base64url').toString('utf8')
+    const out = raw ? new URL(raw) : u
+    return /^https?:$/.test(out.protocol) && !/bing\.com$/i.test(out.hostname) ? out.href : ''
+  } catch { return '' }
+}
+async function searchWeb(query) {
+  const u = 'https://www.bing.com/search?q=' + encodeURIComponent(query)
+  try {
+    const r = await fetch(u, { headers: { 'User-Agent': UA, Accept: 'text/html' }, signal: AbortSignal.timeout(12000) })
+    if (r.ok) {
+      const html = await r.text()
+      const cards = [...html.matchAll(/<li\b[^>]*class=["'][^"']*\bb_algo\b[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi)]
+      const hits = cards.map(m => {
+        const a = m[1].match(/<h2\b[^>]*>[\s\S]*?<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
+        const p = m[1].match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)
+        return a ? { title: htmlText(a[2]), url: resultUrl(a[1]), snippet: p ? htmlText(p[1]) : '' } : null
+      }).filter(x => x && x.title && x.url).slice(0, 5)
+      if (hits.length) return '🔎 *Resultados de la web:*\n' + hits.map((x, i) => `${i + 1}. *${safeText(x.title, 140)}*${x.snippet ? ' — ' + safeText(x.snippet, 260) : ''}\n${x.url}`).join('\n\n')
+    }
+  } catch (e) { console.log('YUTA WEB SEARCH:', e.message) }
+
+  const w = new URL('https://es.wikipedia.org/w/api.php')
+  w.search = new URLSearchParams({ action: 'query', list: 'search', srsearch: query, format: 'json', utf8: '1', srlimit: '4' })
+  const r = await fetch(w, { headers: { 'User-Agent': 'YUTA-BOT/1.0 (search)' }, signal: AbortSignal.timeout(12000) })
   if (!r.ok) throw new Error('La búsqueda no respondió (' + r.status + ')')
   const j = await r.json()
   const hits = (j.query && j.query.search) || []
-  if (!hits.length) return 'No encontré resultados en Wikipedia para esa búsqueda.'
-  return '🔎 *Encontré esto:*\n' + hits.map((x, i) => `${i + 1}. *${safeText(x.title, 140)}* — ${safeText(x.snippet.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&#039;/g, "'"), 260)}\nhttps://es.wikipedia.org/?curid=${x.pageid}`).join('\n\n')
+  if (!hits.length) return 'No encontré resultados para esa búsqueda.'
+  return '🔎 *Resultados de Wikipedia:*\n' + hits.map((x, i) => `${i + 1}. *${safeText(x.title, 140)}* — ${safeText(htmlText(x.snippet), 260)}\nhttps://es.wikipedia.org/?curid=${x.pageid}`).join('\n\n')
 }
 
 async function replyChat(text, memory, conversationKey) {
@@ -87,4 +114,4 @@ async function replyChat(text, memory, conversationKey) {
   return safeText(out, 2500) || 'Acá estoy. ¿Qué necesitás?'
 }
 
-module.exports = { interpret, searchWiki, replyChat, rememberTurn, parseJson }
+module.exports = { interpret, searchWeb, replyChat, rememberTurn, parseJson }
