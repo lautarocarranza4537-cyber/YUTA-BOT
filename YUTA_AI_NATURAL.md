@@ -8,7 +8,7 @@ YUTA now has an optional natural-language entry point: in a private chat or enab
 - Answers conversational messages in a calm, warm Spanish/Argentine voice inspired by Yuta Okkotsu, without claiming to be the real character.
 - Interprets requests into the existing registered command list only. It never executes model-generated shell, JavaScript, URLs, or arbitrary code.
 - Runs commands through the same permissions, group-only, owner-only, and bot-admin checks as a typed command. No permission is granted by natural-language parsing.
-- Search intent uses the Spanish Wikipedia API and includes links to the source articles. This is an encyclopedia lookup, not a general real-time web search.
+- Search intent searches the public web with Bing HTML results and includes source links, falling back to Spanish Wikipedia if the web search is unavailable. Search availability/results depend on the provider; it is not guaranteed live or comprehensive.
 - Keeps a short recent conversation context in memory (per bot account/chat/sender), capped at eight turns and lost on process restart.
 - Supports explicit “Yuta, recuerda que …”, “Yuta, olvida …”, and “Yuta, qué recuerdas de mí?”. Stored memories are per sender and capped at 15 short items. Passwords, tokens, API keys, cookies and pairing codes are rejected. Memory is written in the existing bot JSON under `sessions/`; Render's ephemeral filesystem can lose it on restart unless a persistent disk is configured.
 
