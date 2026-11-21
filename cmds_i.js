@@ -8,11 +8,19 @@ const social = require('./social')
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const MAX_MIN = 12
-const FORMAT = (process.env.AUDIO_FORMAT || 'mp3').toLowerCase()
+// .play siempre entrega M4A; las conversiones usan /tmp (efímero) y se limpian al terminar.
+const audioExt = (ct, buf) => {
+  if (buf && buf.slice(0, 4).toString() === 'OggS') return 'ogg'
+  if (buf && buf.length >= 8 && buf.slice(4, 8).toString() === 'ftyp') return 'm4a'
+  if (buf && (buf.slice(0, 3).toString() === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0))) return 'mp3'
+  if (buf && buf.slice(0, 4).toString() === '\u001aE\u00df\u00a3') return 'webm'
+  return /mpeg|mp3/i.test(ct || '') ? 'mp3' : /ogg/i.test(ct || '') ? 'ogg' : /webm|opus/i.test(ct || '') ? 'webm' : 'm4a'
+}
 
 module.exports = H => {
-  const { add, enqueue, pending, durSec, convert, toMp3 } = H
-  const toVoice = buf => convert(buf, 'm4a', 'ogg', ['-vn', '-c:a', 'libopus', '-b:a', '48k', '-ar', '48000', '-ac', '1', '-application', 'voip', '-f', 'ogg'], 120000)
+  const { add, enqueue, pending, durSec, convert } = H
+  const toVoice = (buf, ext) => convert(buf, ext, 'ogg', ['-vn', '-c:a', 'libopus', '-b:a', '48k', '-ar', '48000', '-ac', '1', '-application', 'voip', '-f', 'ogg'], 120000)
+  const toM4a = (buf, ext) => convert(buf, ext, 'm4a', ['-vn', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart'], 120000)
 
   // Un solo flujo para play (audio normal) y playaudio (nota de voz)
   async function song(c, voice) {
@@ -49,19 +57,15 @@ module.exports = H => {
         const a = await audioP
         const t2 = Date.now()
         let out = a.buf, msg
+        const ext = audioExt(a.ct, a.buf)
         const d = await cardP.catch(() => null)
         const title = (((d && d.title) || item.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 80)) || 'audio'
         if (voice) {
-          try { out = await toVoice(a.buf) } catch (e) { throw new Error('No pude convertir el audio a nota de voz (' + e.message + ')') }
+          try { out = await toVoice(a.buf, ext) } catch (e) { throw new Error('No pude convertir el audio a nota de voz (' + e.message + ')') }
           msg = { audio: out, mimetype: 'audio/ogg; codecs=opus', ptt: true }
-        } else if (FORMAT === 'm4a' && !/mpeg|mp3/i.test(a.ct)) {
-          msg = { audio: out, mimetype: 'audio/mp4', fileName: title + '.m4a' }
         } else {
-          let mime = 'audio/mpeg', ext = 'mp3'
-          if (!/mpeg|mp3/i.test(a.ct)) {
-            try { out = await toMp3(a.buf) } catch (e) { console.log('⚠ sin conversión a mp3:', e.message); mime = 'audio/mp4'; ext = 'm4a' }
-          }
-          msg = { audio: out, mimetype: mime, fileName: title + '.' + ext }
+          if (!/mp4/i.test(a.ct || '')) out = await toM4a(a.buf, ext)
+          msg = { audio: out, mimetype: 'audio/mp4', fileName: title + '.m4a' }
         }
         const t3 = Date.now()
         await c.sock.sendMessage(c.chat, msg, { quoted: c.m })
@@ -74,8 +78,8 @@ module.exports = H => {
     }
   }
 
-  add(['play', 'musica', 'p'], 'Música', 'Descarga una canción en audio (máx 30 MB)', { usage: '<nombre o link>', heavy: true }, c => song(c, false))
-  add(['playaudio', 'ytaudio', 'playnota', 'playvoz'], 'Música', 'Manda la canción como nota de voz de WhatsApp', { usage: '<nombre o link>', heavy: true }, c => song(c, true))
+  add(['play', 'musica', 'p'], 'Música', 'Envía audio M4A (máx 12 min / 30 MB)', { usage: '<nombre o link>', heavy: true }, c => song(c, false))
+  add(['playaudio', 'ytaudio', 'playnota', 'playvoz'], 'Música', 'Convierte y manda nota de voz Ogg/Opus (máx 12 min / 30 MB)', { usage: '<nombre o link>', heavy: true }, c => song(c, true))
 
   // ───── pin: solo imágenes (10 por búsqueda, o la imagen de un link) ─────
   add(['pin', 'pinterest'], 'Descargas', 'Busca 10 imágenes de Pinterest o descarga la imagen de un link', { usage: '<nombre o link>', heavy: true }, async c => {
